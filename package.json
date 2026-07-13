@@ -41,7 +41,7 @@
     "typescript": "^6.0.3"
   },
   "scripts": {
-    "test": "node tests/structure.test.mjs && node tests/upstream-sync.test.mjs && node tests/extension.test.mjs && node tests/skill-contracts.test.mjs && node tests/pi-reference-contract.test.mjs",
+    "test": "node tests/structure.test.mjs && node tests/upstream-sync.test.mjs && node tests/extension.test.mjs && node tests/skill-contracts.test.mjs && node tests/pi-reference-contract.test.mjs && node tests/validate-eval-report.test.mjs",
     "typecheck": "tsc --noEmit",
     "upstream:init": "node scripts/upstream-sync.mjs init",
     "upstream:check": "node scripts/upstream-sync.mjs check",

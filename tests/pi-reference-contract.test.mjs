@@ -81,7 +81,7 @@ for (const skillDir of readdirSync(path.join(ROOT, "skills"), { withFileTypes: t
 const packageJson = JSON.parse(read("package.json"));
 assert.equal(
   packageJson.scripts.test,
-  "node tests/structure.test.mjs && node tests/upstream-sync.test.mjs && node tests/extension.test.mjs && node tests/skill-contracts.test.mjs && node tests/pi-reference-contract.test.mjs",
+  "node tests/structure.test.mjs && node tests/upstream-sync.test.mjs && node tests/extension.test.mjs && node tests/skill-contracts.test.mjs && node tests/pi-reference-contract.test.mjs && node tests/validate-eval-report.test.mjs",
 );
 
 console.log(`Pi reference checks passed for ${visited.size} reachable markdown files`);
