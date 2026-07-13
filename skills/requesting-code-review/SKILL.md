@@ -9,25 +9,43 @@ Dispatch a code reviewer subagent to catch issues before they cascade. The revie
 
 **Core principle:** Review early, review often.
 
+## Route-Aware Review
+
+- **Micro:** no independent review. Focused verification is still mandatory.
+- **Standard:** independent review is risk-gated. Request it for shared behavior,
+  broad blast radius, ambiguous acceptance, or evidence that needs a second set
+  of eyes; otherwise implementation self-review plus verification is sufficient.
+- **Full:** a mandatory final whole-change review is required before migration,
+  merge, or release. Add task-level review only at the high-risk boundaries
+  defined by the active execution workflow.
+
+Important findings block progression until fixed or rebutted with concrete
+evidence. A re-review request must identify the new diff, remaining risk, and new evidence
+since the previous verdict; do not ask a reviewer to rediscover them.
+
 ## When to Request Review
 
 **Mandatory:**
-- After each task in subagent-driven development
-- After completing major feature
-- Before merge to main
+- At the final gate for every Full-route change
+- At high-risk task boundaries selected by the Full execution workflow
+- Before a Full change is merged, migrated, or released
 
 **Optional but valuable:**
+- For a risk-gated Standard change
 - When stuck (fresh perspective)
 - Before refactoring (baseline check)
-- After fixing complex bug
+- After fixing a complex bug
 
 ## How to Request
 
 **1. Get git SHAs:**
 ```bash
-BASE_SHA=$(git rev-parse HEAD~1)  # or origin/main
+BASE_SHA="<exact SHA recorded before implementation>"
 HEAD_SHA=$(git rev-parse HEAD)
 ```
+
+For a final review, use the branch starting point (or Git empty tree for root
+history), not a relative one-commit shortcut.
 
 **2. Dispatch code reviewer subagent:**
 
@@ -52,7 +70,7 @@ Dispatch a `general-purpose` subagent, filling the template at [code-reviewer.md
 
 You: Let me request code review before proceeding.
 
-BASE_SHA=$(git log --oneline | grep "Task 1" | head -1 | awk '{print $1}')
+BASE_SHA=a7981ec  # exact SHA recorded before Task 2 started
 HEAD_SHA=$(git rev-parse HEAD)
 
 [Dispatch code reviewer subagent]
@@ -75,22 +93,22 @@ You: [Fix progress indicators]
 ## Integration with Workflows
 
 **Subagent-Driven Development:**
-- Review after EACH task
-- Catch issues before they compound
-- Fix before moving to next task
+- Review high-risk tasks at their boundary
+- Run one mandatory final whole-change review
+- Fix blocking findings before migration or merge
 
 **Executing Plans:**
-- Review after each task or at natural checkpoints
-- Get feedback, apply, continue
+- Review at risk boundaries and at the Full final gate
+- Carry the new diff and evidence into re-review
 
 **Ad-Hoc Development:**
-- Review before merge
-- Review when stuck
+- Follow the active Micro, Standard, or Full route
+- Request review when Standard risk warrants it or when stuck
 
 ## Red Flags
 
 **Never:**
-- Skip review because "it's simple"
+- Skip a review required by the active route or risk boundary
 - Ignore Critical issues
 - Proceed with unfixed Important issues
 - Argue with valid technical feedback

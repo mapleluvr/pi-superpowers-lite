@@ -15,16 +15,27 @@ Write the test first. Watch it fail. Write minimal code to pass.
 
 ## When to Use
 
-**Always:**
-- New features
-- Bug fixes
-- Refactoring
-- Behavior changes
+**Always for executable work:**
+- New features and behavior changes
+- Bug fixes and regressions
+- Refactoring that can change runtime behavior
+- Shared contracts and public interfaces
 
-**Exceptions (ask your human partner):**
-- Throwaway prototypes
-- Generated code
-- Configuration files
+## Non-Behavior Exceptions
+
+When a change has no executable semantics, use a direct artifact check instead
+of manufacturing a failing test. This bounded exception covers documentation,
+formatting, pure renames, generated artifacts, and static configuration only
+when they have no executable semantics:
+
+1. State why the change cannot alter runtime behavior.
+2. Make the smallest change.
+3. Run direct artifact validation: diff inspection, formatter/checker, generated
+   output comparison, or configuration parser as applicable.
+4. Run adjacent tests when they are cheap and relevant.
+
+If a supposedly static change can affect behavior, return to RED-GREEN-REFACTOR.
+Never use this exception for a behavior change, regression, or shared contract.
 
 Thinking "skip TDD just this once"? Stop. That's rationalization.
 

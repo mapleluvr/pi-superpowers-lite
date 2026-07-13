@@ -110,6 +110,94 @@ if (!ROUTER_ONLY) {
   ]) {
     assert.ok(brainstorming.body.includes(anchor), `brainstorming must retain ${anchor}`);
   }
+
+  const writingPlans = splitFrontmatter(readSkill("writing-plans"));
+  assert.match(writingPlans.frontmatter, /Full-route work/i, "writing-plans must be Full-only");
+  for (const anchor of [
+    "Purpose and observable outcome",
+    "Files/modules and ownership boundary",
+    "Interfaces and cross-task dependencies",
+    "Constraints and invariants",
+    "Acceptance evidence",
+    "Risk and rollback",
+  ]) {
+    assert.ok(writingPlans.body.includes(anchor), `writing-plans must retain ${anchor}`);
+  }
+  assert.match(writingPlans.body, /Pseudocode only for fragile or non-obvious logic/i);
+  assert.match(writingPlans.body, /do not copy full function bodies/i);
+  assert.match(writingPlans.body, /durable plan/i);
+  assert.match(writingPlans.body, /Self-Review/i);
+
+  const systematicDebugging = splitFrontmatter(readSkill("systematic-debugging"));
+  assert.ok(systematicDebugging.body.includes("## Deterministic Short Path"));
+  assert.match(systematicDebugging.body, /obvious, reproducible failure/i);
+  assert.match(
+    systematicDebugging.body,
+    /reproduce.*root cause.*regression evidence.*fix.*verify/is,
+    "debugging short path must retain evidence before fixes",
+  );
+  assert.match(systematicDebugging.body, /uncertain or intermittent/i);
+  assert.match(systematicDebugging.body, /multi-component/i);
+  assert.match(systematicDebugging.body, /NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST/);
+  assert.match(systematicDebugging.body, /## The Four Phases/);
+  assert.doesNotMatch(systematicDebugging.body, /You MUST complete each phase before proceeding/);
+
+  const tdd = splitFrontmatter(readSkill("test-driven-development"));
+  assert.ok(tdd.body.includes("## Non-Behavior Exceptions"));
+  for (const anchor of [
+    "documentation",
+    "formatting",
+    "pure renames",
+    "generated artifacts",
+    "static configuration",
+    "no executable semantics",
+    "direct artifact validation",
+  ]) {
+    assert.match(tdd.body, new RegExp(anchor, "i"), `TDD exceptions must retain ${anchor}`);
+  }
+  for (const anchor of ["behavior changes", "regressions", "shared contracts", "RED-GREEN-REFACTOR"]) {
+    assert.match(tdd.body, new RegExp(anchor, "i"), `TDD must remain mandatory for ${anchor}`);
+  }
+  assert.match(tdd.body, /NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST/);
+
+  const requestingReview = splitFrontmatter(readSkill("requesting-code-review"));
+  assert.ok(requestingReview.body.includes("## Route-Aware Review"));
+  for (const anchor of [
+    "Micro",
+    "no independent review",
+    "Standard",
+    "risk-gated",
+    "Full",
+    "mandatory final whole-change review",
+    "new diff",
+    "remaining risk",
+    "new evidence",
+  ]) {
+    assert.match(requestingReview.body, new RegExp(anchor, "i"), `review policy must retain ${anchor}`);
+  }
+  assert.match(requestingReview.body, /Important.*block|block.*Important/i);
+  assert.doesNotMatch(requestingReview.body, /Review after EACH task|Review after each task/);
+  assert.doesNotMatch(requestingReview.body, /Skip review because "it's simple"/);
+  assert.doesNotMatch(requestingReview.body, /HEAD~1/, "review packages must use the recorded base");
+
+  const sdd = splitFrontmatter(readSkill("subagent-driven-development"));
+  assert.match(sdd.frontmatter, /Full-route work/i, "SDD must be Full-only");
+  assert.ok(sdd.body.includes("## Risk-Gated Task Review"));
+  for (const anchor of [
+    "public/shared contracts",
+    "security",
+    "migrations",
+    "concurrency",
+    "high blast radius",
+    "routine tasks do not dispatch a task reviewer",
+    "implementer tests",
+    "self-review",
+    "final whole-branch review",
+    "one consolidated fix wave",
+  ]) {
+    assert.match(sdd.body, new RegExp(anchor, "i"), `SDD must retain ${anchor}`);
+  }
+  assert.match(sdd.body, /task-level.*risk|risk.*task-level/i);
 }
 
 console.log(ROUTER_ONLY ? "router contract checks passed" : "skill contract checks passed");

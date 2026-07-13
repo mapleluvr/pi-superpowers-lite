@@ -71,7 +71,7 @@
     {
       "path": "skills/requesting-code-review/SKILL.md",
       "upstreamHash": "1017ccdd5bc61fab67c654cf118cbdb520464b313073a0a6b9a6b9aa647a3ad6",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/requesting-code-review/code-reviewer.md",
@@ -81,7 +81,7 @@
     {
       "path": "skills/subagent-driven-development/SKILL.md",
       "upstreamHash": "41ab239a6ad1c487cd839fdac972a8c9cf0f5e90efa59a63f963767864f0df4c",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/subagent-driven-development/implementer-prompt.md",
@@ -116,7 +116,7 @@
     {
       "path": "skills/systematic-debugging/SKILL.md",
       "upstreamHash": "3b20719eca4f0461cb51a195221320d775dcf03b6859271066a03a5132a6ce7a",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/systematic-debugging/condition-based-waiting-example.ts",
@@ -166,7 +166,7 @@
     {
       "path": "skills/test-driven-development/SKILL.md",
       "upstreamHash": "b5b4717b8b761cce15a6cfe9022e33fd959e0894c0c39d72c9cb49c23486c10e",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/test-driven-development/testing-anti-patterns.md",
@@ -206,7 +206,7 @@
     {
       "path": "skills/writing-plans/SKILL.md",
       "upstreamHash": "272e1af349f5062c28dc282b3e21b220d58d683a7314a10c455b7432ec91d845",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/writing-plans/plan-document-reviewer-prompt.md",

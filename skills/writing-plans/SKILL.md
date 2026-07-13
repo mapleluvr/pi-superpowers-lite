@@ -1,15 +1,15 @@
 ---
 name: writing-plans
-description: Use when you have a spec or requirements for a multi-step task, before touching code
+description: Use for Full-route work after an approved spec, before implementation begins
 ---
 
 # Writing Plans
 
 ## Overview
 
-Write comprehensive implementation plans assuming the engineer has zero context for our codebase and questionable taste. Document everything they need to know: which files to touch for each task, code, testing, docs they might need to check, how to test it. Give them the whole plan as bite-sized tasks. DRY. YAGNI. TDD. Frequent commits.
+Write a durable plan for Full-route work after the design is approved. Give a capable engineer enough context to preserve intent, interfaces, invariants, and evidence without repeating the spec or pre-writing ordinary implementation code.
 
-Assume they are a skilled developer, but know almost nothing about our toolset or problem domain. Assume they don't know good test design very well.
+Assume the executor is a skilled developer with no session history. The plan must stand alone by referencing the approved spec, naming exact ownership boundaries, and making risky decisions explicit. DRY. YAGNI. TDD. Reviewable commits.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
@@ -17,6 +17,25 @@ Assume they are a skilled developer, but know almost nothing about our toolset o
 
 **Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
 - (User preferences for plan location override this default)
+
+## Intent-Level Content
+
+Every task states:
+
+```text
+Purpose and observable outcome
+Files/modules and ownership boundary
+Interfaces and cross-task dependencies
+Constraints and invariants
+Acceptance evidence
+Risk and rollback
+Pseudocode only for fragile or non-obvious logic
+```
+
+Reference the approved spec for WHAT and WHY instead of restating it. Ordinary
+steps do not copy full function bodies, complete test files, or repeated TDD
+narration. Use exact snippets only for migrations, destructive operations,
+protocol boundaries, fragile configuration, or genuinely non-obvious algorithms.
 
 ## Scope Check
 
@@ -42,14 +61,12 @@ deliverable needs them; split only where a reviewer could meaningfully
 reject one task while approving its neighbor. Each task ends with an
 independently testable deliverable.
 
-## Bite-Sized Task Granularity
+## Step Granularity
 
-**Each step is one action (2-5 minutes):**
-- "Write the failing test" - step
-- "Run it to make sure it fails" - step
-- "Implement the minimal code to make the test pass" - step
-- "Run the tests and make sure they pass" - step
-- "Commit" - step
+Each task must be independently testable and reviewable. Within it, describe the
+RED, implementation, verification, and commit sequence once with exact commands
+and expected evidence. Do not expand routine work into repeated two-minute
+narration; split only when a step changes ownership, risk, or acceptance evidence.
 
 ## Plan Document Header
 
@@ -79,49 +96,38 @@ include this section.]
 ## Task Structure
 
 ````markdown
-### Task N: [Component Name]
+### Task N: [Observable outcome]
 
-**Files:**
+**Purpose:** [user-visible or system-visible result]
+
+**Files/modules:**
 - Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py:123-145`
+- Modify: `exact/path/to/existing.py`
 - Test: `tests/exact/path/to/test.py`
 
-**Interfaces:**
-- Consumes: [what this task uses from earlier tasks — exact signatures]
-- Produces: [what later tasks rely on — exact function names, parameter
-  and return types. A task's implementer sees only their own task; this
-  block is how they learn the names and types neighboring tasks use.]
+**Interfaces and dependencies:**
+- Consumes: [existing contract, exact name/signature where stable]
+- Produces: [contract later tasks rely on]
 
-- [ ] **Step 1: Write the failing test**
+**Constraints and invariants:**
+- [binding requirement copied exactly from the spec]
 
-```python
-def test_specific_behavior():
-    result = function(input)
-    assert result == expected
-```
+**Acceptance evidence:**
+- RED: `exact focused command` -> expected failure reason
+- GREEN: `exact focused command` -> expected pass evidence
+- Regression: `exact broader command` -> expected pass evidence
 
-- [ ] **Step 2: Run test to verify it fails**
+**Risk and rollback:**
+- [risk boundary and practical reversal]
 
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: FAIL with "function not defined"
+**Implementation intent:**
+- [ordered changes at the ownership level]
+- [pseudocode or precise snippet only when logic is fragile or non-obvious]
 
-- [ ] **Step 3: Write minimal implementation**
-
-```python
-def function(input):
-    return expected
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `pytest tests/path/test.py::test_name -v`
-Expected: PASS
-
-- [ ] **Step 5: Commit**
-
+**Commit:**
 ```bash
-git add tests/path/test.py src/path/file.py
-git commit -m "feat: add specific feature"
+git add exact/path/to/file.py tests/exact/path/to/test.py
+git commit -m "feat: add observable outcome"
 ```
 ````
 
@@ -130,16 +136,17 @@ git commit -m "feat: add specific feature"
 Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
 - "TBD", "TODO", "implement later", "fill in details"
 - "Add appropriate error handling" / "add validation" / "handle edge cases"
-- "Write tests for the above" (without actual test code)
-- "Similar to Task N" (repeat the code — the engineer may be reading tasks out of order)
-- Steps that describe what to do without showing how (code blocks required for code steps)
-- References to types, functions, or methods not defined in any task
+- "Write tests for the above" without naming observable behavior, command, and expected evidence
+- "Similar to Task N" without restating the relevant intent and interface
+- Fragile logic described vaguely instead of with pseudocode or a precise snippet
+- References to types, functions, or methods not defined in the spec, codebase, or plan
 
 ## Remember
-- Exact file paths always
-- Complete code in every step — if a step changes code, show the code
+- Exact file paths and ownership boundaries
+- Precise interfaces, invariants, acceptance evidence, risk, and rollback
+- Pseudocode only where implementation intent would otherwise be ambiguous
 - Exact commands with expected output
-- DRY, YAGNI, TDD, frequent commits
+- DRY, YAGNI, TDD, reviewable commits
 
 ## Self-Review
 

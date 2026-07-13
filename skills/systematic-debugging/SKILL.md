@@ -21,6 +21,20 @@ NO FIXES WITHOUT ROOT CAUSE INVESTIGATION FIRST
 
 If you haven't completed Phase 1, you cannot propose fixes.
 
+## Deterministic Short Path
+
+For an obvious, reproducible failure with a single known component, use the
+short evidence-preserving path:
+
+```text
+reproduce -> root cause -> regression evidence -> fix -> verify
+```
+
+This is a smaller presentation of the same root-cause rule, not permission to
+guess or skip regression evidence. For an uncertain or intermittent failure,
+multiple hypotheses, a multi-component boundary, or a failed short-path fix,
+use all four phases below with the full investigation and instrumentation steps.
+
 ## When to Use
 
 Use for ANY technical issue:
@@ -45,7 +59,9 @@ Use for ANY technical issue:
 
 ## The Four Phases
 
-You MUST complete each phase before proceeding to the next.
+For uncertain or intermittent failures, multi-component systems, competing
+hypotheses, or a failed short-path fix, complete each phase before proceeding.
+The deterministic short path above is the condensed form for obvious local cases.
 
 ### Phase 1: Root Cause Investigation
 
