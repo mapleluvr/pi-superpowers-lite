@@ -4,6 +4,11 @@
   "commit": "d884ae04edebef577e82ff7c4e143debd0bbec99",
   "files": [
     {
+      "path": ".pi/extensions/superpowers.ts",
+      "upstreamHash": "39c27000c047f8a1399a76e032e4cd239d7bdb0be168a121f46a2ac719deaae0",
+      "status": "pi-adapted"
+    },
+    {
       "path": "skills/brainstorming/SKILL.md",
       "upstreamHash": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d",
       "status": "unchanged"

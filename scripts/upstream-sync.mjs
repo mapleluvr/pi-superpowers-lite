@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 const MANIFEST_FILE = "upstream-manifest.json";
 const SKILLS_PREFIX = "skills/";
+const PI_EXTENSION_PATH = ".pi/extensions/superpowers.ts";
 const MODIFIED_STATUSES = new Set(["lite-modified", "pi-adapted"]);
 export const PINNED_UPSTREAM = Object.freeze({
   repository: "https://github.com/obra/superpowers",
@@ -45,11 +46,14 @@ function listFiles(directory) {
     .sort(lexicalSort);
 }
 
-function listSkillPaths(rootDir) {
-  const skillsDir = path.join(rootDir, "skills");
-  return listFiles(skillsDir)
-    .map((filePath) => toPortablePath(path.relative(rootDir, filePath)))
-    .sort(lexicalSort);
+function listTrackedPaths(rootDir) {
+  const skillPaths = listFiles(path.join(rootDir, "skills"))
+    .map((filePath) => toPortablePath(path.relative(rootDir, filePath)));
+  const extensionPath = path.join(rootDir, ...PI_EXTENSION_PATH.split("/"));
+  if (existsSync(extensionPath)) {
+    skillPaths.push(PI_EXTENSION_PATH);
+  }
+  return skillPaths.sort(lexicalSort);
 }
 
 function hashFile(filePath) {
@@ -179,25 +183,28 @@ function assertExpectedCommit(sourceDir, expectedCommit) {
   }
 }
 
-function assertSkillPath(relativePath) {
-  if (typeof relativePath !== "string" || !relativePath.startsWith(SKILLS_PREFIX)) {
-    throw new Error(`Manifest path must be under skills/: ${relativePath}`);
+function assertTrackedPath(relativePath) {
+  if (
+    typeof relativePath !== "string"
+    || (!relativePath.startsWith(SKILLS_PREFIX) && relativePath !== PI_EXTENSION_PATH)
+  ) {
+    throw new Error(`Manifest path must be under skills/ or the Pi extension: ${relativePath}`);
   }
 
   const normalized = path.posix.normalize(relativePath);
   if (normalized !== relativePath || normalized.startsWith("../") || normalized.includes("/../")) {
-    throw new Error(`Manifest path must not escape skills/: ${relativePath}`);
+    throw new Error(`Manifest path must not escape its tracked root: ${relativePath}`);
   }
 }
 
-function absoluteSkillPath(rootDir, relativePath) {
-  assertSkillPath(relativePath);
+function absoluteTrackedPath(rootDir, relativePath) {
+  assertTrackedPath(relativePath);
   return path.join(rootDir, ...relativePath.split("/"));
 }
 
 function summarizeDrift({ manifest, packageDir, sourceDir }) {
-  const sourcePaths = listSkillPaths(sourceDir);
-  const localPaths = listSkillPaths(packageDir);
+  const sourcePaths = listTrackedPaths(sourceDir);
+  const localPaths = listTrackedPaths(packageDir);
   const sourcePathSet = new Set(sourcePaths);
   const localPathSet = new Set(localPaths);
   const trackedPaths = new Map();
@@ -216,7 +223,7 @@ function summarizeDrift({ manifest, packageDir, sourceDir }) {
     }
 
     try {
-      assertSkillPath(entry.path);
+      assertTrackedPath(entry.path);
     } catch (error) {
       summary.statusMismatches.push(error.message);
       continue;
@@ -259,8 +266,8 @@ function summarizeDrift({ manifest, packageDir, sourceDir }) {
       continue;
     }
 
-    const localHash = hashFile(absoluteSkillPath(packageDir, relativePath));
-    const sourceHash = hashFile(absoluteSkillPath(sourceDir, relativePath));
+    const localHash = hashFile(absoluteTrackedPath(packageDir, relativePath));
+    const sourceHash = hashFile(absoluteTrackedPath(sourceDir, relativePath));
     if (sourceHash !== entry.upstreamHash) {
       summary.modified.push(relativePath);
     }
@@ -298,13 +305,13 @@ function driftError(message, summary) {
 }
 
 function initialize({ manifest, packageDir, sourceDir }) {
-  const localPaths = listSkillPaths(packageDir);
+  const localPaths = listTrackedPaths(packageDir).filter((relativePath) => relativePath.startsWith(SKILLS_PREFIX));
   const entries = [];
   const mismatches = [];
 
   for (const relativePath of localPaths) {
-    const localPath = absoluteSkillPath(packageDir, relativePath);
-    const sourcePath = absoluteSkillPath(sourceDir, relativePath);
+    const localPath = absoluteTrackedPath(packageDir, relativePath);
+    const sourcePath = absoluteTrackedPath(sourceDir, relativePath);
     if (!existsSync(sourcePath)) {
       mismatches.push(`${relativePath}: missing from source checkout`);
       continue;
@@ -324,7 +331,8 @@ function initialize({ manifest, packageDir, sourceDir }) {
     throw new Error(`Cannot initialize upstream manifest:\n${mismatches.join("\n")}`);
   }
 
-  manifest.files = entries;
+  const piAdaptedEntries = manifest.files.filter((entry) => entry.path === PI_EXTENSION_PATH);
+  manifest.files = [...entries, ...piAdaptedEntries].sort((left, right) => lexicalSort(left.path, right.path));
   writeManifest(packageDir, manifest);
   return {
     additions: [],
@@ -355,8 +363,8 @@ function synchronize({ manifest, packageDir, sourceDir, summary }) {
 
   for (const relativePath of summary.modified) {
     const entry = trackedPaths.get(relativePath);
-    const sourcePath = absoluteSkillPath(sourceDir, relativePath);
-    const localPath = absoluteSkillPath(packageDir, relativePath);
+    const sourcePath = absoluteTrackedPath(sourceDir, relativePath);
+    const localPath = absoluteTrackedPath(packageDir, relativePath);
     mkdirSync(path.dirname(localPath), { recursive: true });
     copyFileSync(sourcePath, localPath);
 

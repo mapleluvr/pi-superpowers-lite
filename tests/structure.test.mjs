@@ -241,11 +241,16 @@ export function assertPackageStructure({ rootDir = ROOT, expectedSkills = EXPECT
 
   const importedFiles = listFiles(skillsDir)
     .map((filePath) => toPortablePath(path.relative(rootDir, filePath)));
+  const extensionFiles = packageJson.pi.extensions
+    .map((extensionPath) => path.resolve(rootDir, extensionPath))
+    .filter((extensionPath) => existsSync(extensionPath))
+    .map((extensionPath) => toPortablePath(path.relative(rootDir, extensionPath)));
+  const trackedFiles = [...importedFiles, ...extensionFiles].sort(lexicalSort);
   assert.ok(Array.isArray(manifest.files), "upstream-manifest.json files must be an array");
   assert.ok(manifest.files.length > 0, "upstream-manifest.json must register imported files");
 
   const manifestPaths = manifest.files.map((entry) => entry.path);
-  assert.deepEqual(manifestPaths, importedFiles, "every imported file must be represented in the manifest");
+  assert.deepEqual(manifestPaths, trackedFiles, "every imported file and registered extension must be represented in the manifest");
   assert.equal(new Set(manifestPaths).size, manifestPaths.length, "manifest paths must be unique");
 
   for (const entry of manifest.files) {
