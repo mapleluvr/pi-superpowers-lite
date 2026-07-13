@@ -15,6 +15,11 @@ import { fileURLToPath } from "node:url";
 const MANIFEST_FILE = "upstream-manifest.json";
 const SKILLS_PREFIX = "skills/";
 const MODIFIED_STATUSES = new Set(["lite-modified", "pi-adapted"]);
+export const PINNED_UPSTREAM = Object.freeze({
+  repository: "https://github.com/obra/superpowers",
+  tag: "v6.1.1",
+  commit: "d884ae04edebef577e82ff7c4e143debd0bbec99",
+});
 
 function lexicalSort(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -143,13 +148,33 @@ function writeManifest(packageDir, manifest) {
   renameSync(temporaryPath, manifestPath);
 }
 
-function assertExpectedCommit(sourceDir, expectedCommit) {
+function expectedUpstreamForRun(expectedCommit) {
+  if (expectedCommit === undefined) {
+    return PINNED_UPSTREAM;
+  }
   if (!validCommit(expectedCommit)) {
     throw new Error(`Expected commit must be a 40-character Git SHA: ${expectedCommit}`);
   }
 
+  // Test-only injection for temporary source trees; the CLI never accepts this value.
+  return { ...PINNED_UPSTREAM, commit: expectedCommit.toLowerCase() };
+}
+
+function assertManifestMetadata(manifest, expectedUpstream) {
+  const mismatches = [];
+  for (const [field, expectedValue] of Object.entries(expectedUpstream)) {
+    if (manifest[field] !== expectedValue) {
+      mismatches.push(`${field} must be ${expectedValue}`);
+    }
+  }
+  if (mismatches.length > 0) {
+    throw new Error(`Manifest metadata does not match the pinned upstream: ${mismatches.join(", ")}`);
+  }
+}
+
+function assertExpectedCommit(sourceDir, expectedCommit) {
   const actualCommit = readGitHead(sourceDir);
-  if (actualCommit !== expectedCommit.toLowerCase()) {
+  if (actualCommit !== expectedCommit) {
     throw new Error(`Source checkout HEAD ${actualCommit} does not match expected commit ${expectedCommit}`);
   }
 }
@@ -360,8 +385,9 @@ export function runSync({ mode, sourceDir, packageDir, expectedCommit } = {}) {
   const resolvedSourceDir = path.resolve(sourceDir);
   const resolvedPackageDir = path.resolve(packageDir);
   const manifest = readManifest(resolvedPackageDir);
-  const commit = expectedCommit ?? manifest.commit;
-  assertExpectedCommit(resolvedSourceDir, commit);
+  const expectedUpstream = expectedUpstreamForRun(expectedCommit);
+  assertManifestMetadata(manifest, expectedUpstream);
+  assertExpectedCommit(resolvedSourceDir, expectedUpstream.commit);
 
   if (mode === "init") {
     return initialize({ manifest, packageDir: resolvedPackageDir, sourceDir: resolvedSourceDir });
