@@ -1,0 +1,50 @@
+{
+  "name": "@mapleluvr/pi-superpowers-lite",
+  "version": "0.1.0",
+  "description": "A Pi-native, risk-proportional Superpowers skillset",
+  "author": "mapleluvr",
+  "license": "MIT",
+  "type": "module",
+  "main": ".pi/extensions/superpowers.ts",
+  "files": [
+    ".pi",
+    "skills",
+    "scripts",
+    "tests",
+    "evals",
+    "README.md",
+    "LICENSE",
+    "UPSTREAM.md",
+    "upstream-manifest.json",
+    "package.json"
+  ],
+  "pi": {
+    "extensions": [
+      "./.pi/extensions/superpowers.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.79.8",
+    "@earendil-works/pi-coding-agent": "^0.79.8",
+    "@earendil-works/pi-tui": "^0.79.8",
+    "@types/node": "^24.0.0",
+    "typebox": "^1.1.24",
+    "typescript": "^6.0.3"
+  },
+  "scripts": {
+    "test": "node tests/structure.test.mjs && node tests/extension.test.mjs && node tests/skill-contracts.test.mjs",
+    "typecheck": "tsc --noEmit",
+    "upstream:init": "node scripts/upstream-sync.mjs init",
+    "upstream:check": "node scripts/upstream-sync.mjs check",
+    "upstream:sync": "node scripts/upstream-sync.mjs sync"
+  }
+}

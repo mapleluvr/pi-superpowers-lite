@@ -1,0 +1,4 @@
+node_modules/
+.superpowers/
+evals/results/*
+!evals/results/.gitkeep
