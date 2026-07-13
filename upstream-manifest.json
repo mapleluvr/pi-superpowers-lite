@@ -46,7 +46,7 @@
     {
       "path": "skills/brainstorming/visual-companion.md",
       "upstreamHash": "3321a044c777d03d7177df41c77bb83155ff2a6d0c16b8a3d752426d29f14ea8",
-      "status": "unchanged"
+      "status": "pi-adapted"
     },
     {
       "path": "skills/dispatching-parallel-agents/SKILL.md",
@@ -56,7 +56,7 @@
     {
       "path": "skills/executing-plans/SKILL.md",
       "upstreamHash": "bbd8d28bb655a52817cc129ce49f9e46fa7c6303f72ed5de95bfe914ef8e0ce8",
-      "status": "unchanged"
+      "status": "pi-adapted"
     },
     {
       "path": "skills/finishing-a-development-branch/SKILL.md",
@@ -196,7 +196,7 @@
     {
       "path": "skills/using-superpowers/references/pi-tools.md",
       "upstreamHash": "703dbc83d23ecab9c6f388460c38abc482e9dee2fe6772a8c7a255152ad3a4d5",
-      "status": "unchanged"
+      "status": "pi-adapted"
     },
     {
       "path": "skills/verification-before-completion/SKILL.md",

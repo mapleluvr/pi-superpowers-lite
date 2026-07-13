@@ -1,16 +1,44 @@
 # Pi Tool Mapping
 
-Skills speak in actions ("dispatch a subagent", "create a todo", "read a file"). On Pi these resolve to the tools below.
+Skills describe actions; on Pi they resolve to the tools exposed by the current
+session. Prefer these lowercase tool names and the package-provided compatibility
+tools over instructions written for another harness.
 
-| Action skills request | Pi equivalent |
+| Skill action | Pi tool or procedure |
 | --- | --- |
-| Dispatch a subagent (`Subagent (general-purpose):` template) | Use an installed subagent tool such as `subagent` from `pi-subagents` if available |
-| Task tracking ("create a todo", "mark complete") | Use an installed todo/task tool if available, otherwise track tasks in the plan or `TODO.md` |
+| Read a file | `read` |
+| Write a new file | `write` |
+| Make a targeted edit | `edit` |
+| Run a command | `bash` |
+| Load a named skill | package-provided `Skill`, backed by Pi's resolved skill list |
+| Track a multi-step task | package-provided `TodoWrite` when available; otherwise the plan or a repo-local checklist |
+| Dispatch independent work | optional `subagent` from `pi-subagents`, when installed |
+
+## Skill Loading
+
+The package-provided `Skill({ skill })` tool loads only skills exposed by Pi's
+native resource discovery. Do not scan git checkouts, npm directories, settings,
+or arbitrary project paths to find a skill. If a name is unavailable, use the
+names Pi supplied or continue without that optional skill.
 
 ## Subagents
 
-Pi core does not ship a standard subagent tool. The `pi-subagents` package is a strong optional companion and provides a `subagent` tool with single-agent, chain, parallel, async, forked-context, and resume/status workflows. If no subagent tool is available, do not fabricate `Task` calls; execute sequentially in the current session or explain that the optional subagent capability is not installed.
+`pi-subagents` is optional. When its `subagent` tool is available, use it for
+Full-route delegation and risk-gated review according to the active workflow.
+When it is unavailable, execute sequentially in the current session and record
+that the optional capability was absent. Do not fabricate `Task(...)` calls or
+assume a generic Agent API exists.
 
-## Task lists
+## Task Lists
 
-Pi core does not ship a standard task-list tool. If a todo/task extension is installed, use its documented tool. Otherwise use Superpowers plan files, checklists in Markdown, or a repo-local `TODO.md` for task tracking. Older Superpowers docs may refer to `TodoWrite`; treat that as the task-tracking action above.
+This package provides `TodoWrite` as an in-session task list. It resets at session
+start and does not replace the durable plan or progress ledger required by Full.
+Use the native task tool only when it is actually present; never claim a todo was
+persisted if the tool did not persist it.
+
+## Long-Running Processes
+
+Pi core has no background Bash. For a process that must survive the current tool
+call, use a persistent terminal mechanism available on the host, such as tmux,
+or ask the user to start the command in a separate persistent terminal. Verify
+its status and retain its output/state path before referring to the process.
