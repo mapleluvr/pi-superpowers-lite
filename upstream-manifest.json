@@ -11,7 +11,7 @@
     {
       "path": "skills/brainstorming/SKILL.md",
       "upstreamHash": "e14914605f640e0841758e45d0ab2a53243b59b921f929e47921c99668f2e61d",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/brainstorming/scripts/frame-template.html",
@@ -181,7 +181,7 @@
     {
       "path": "skills/using-superpowers/SKILL.md",
       "upstreamHash": "55379fe7c1c473a02c61961c822996bff30e1320d6921d9062509bc508482c05",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/using-superpowers/references/antigravity-tools.md",
