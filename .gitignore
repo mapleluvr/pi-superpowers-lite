@@ -1,4 +1,5 @@
 node_modules/
 .superpowers/
+.pi-subagents/
 evals/results/*
 !evals/results/.gitkeep
