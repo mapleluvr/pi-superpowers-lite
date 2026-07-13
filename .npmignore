@@ -1,0 +1,5 @@
+node_modules/
+.superpowers/
+.pi-subagents/
+evals/results/*.json
+!evals/results/.gitkeep
