@@ -118,70 +118,29 @@ if [ -f pyproject.toml ]; then poetry install; fi
 if [ -f go.mod ]; then go mod download; fi
 ```
 
-## Step 3: Verify Clean Baseline
+## Step 3: Record Selective Baseline
 
-Run tests to ensure workspace starts clean:
+Before edits, record the **frozen base SHA**, branch, and clean status. Record available CI status for that SHA; when no trustworthy CI result is available, write `CI status: unknown`, never green.
 
-```bash
-# Use project-appropriate command
-npm test / cargo test / pytest / go test ./...
-```
+Run only the plan-declared L0-L2 commands and preserve their exact output as the **selective baseline**. State the affected paths/contracts and claim only that scope. This is not a globally clean baseline and must never be described as globally clean.
 
-**If tests fail:** Report failures, ask whether to proceed or investigate.
+If the plan lacks a trustworthy focused command, redesign the unit or boundary, add a focused harness, or defer it to final integration. Do not substitute a repository-wide suite.
 
-**If tests pass:** Report ready.
+If selective evidence fails on the untouched base, diagnose it before implementation and record whether the task is blocked or explicitly proceeding with a known base failure.
+
+### Final L3 Failure Attribution
+
+If final L3 later fails, reproduce only the specific failure against the frozen base in a fresh isolated worktree using the same command and filter. A matching failure is pre-existing evidence; a passing base reproduction attributes the regression to the change. Do not create a second repository-wide baseline.
 
 ### Report
 
+```text
+Worktree: <full-path>
+Frozen base: <SHA>
+CI status: <result | unknown>
+Selective baseline: <exact L0-L2 commands and results>
+Scope: <paths/contracts; not globally clean>
 ```
-Worktree ready at <full-path>
-Tests passing (<N> tests, 0 failures)
-Ready to implement <feature-name>
-```
-
-## Quick Reference
-
-| Situation | Action |
-|-----------|--------|
-| Already in linked worktree | Skip creation (Step 0) |
-| In a submodule | Treat as normal repo (Step 0 guard) |
-| Native worktree tool available | Use it (Step 1a) |
-| No native tool | Git worktree fallback (Step 1b) |
-| `.worktrees/` exists | Use it (verify ignored) |
-| `worktrees/` exists | Use it (verify ignored) |
-| Both exist | Use `.worktrees/` |
-| Neither exists | Check instruction file, then default `.worktrees/` |
-| Directory not ignored | Add to .gitignore + commit |
-| Permission error on create | Sandbox fallback, work in place |
-| Tests fail during baseline | Report failures + ask |
-| No package.json/Cargo.toml | Skip dependency install |
-
-## Common Mistakes
-
-### Fighting the harness
-
-- **Problem:** Using `git worktree add` when the platform already provides isolation
-- **Fix:** Step 0 detects existing isolation. Step 1a defers to native tools.
-
-### Skipping detection
-
-- **Problem:** Creating a nested worktree inside an existing one
-- **Fix:** Always run Step 0 before creating anything
-
-### Skipping ignore verification
-
-- **Problem:** Worktree contents get tracked, pollute git status
-- **Fix:** Always use `git check-ignore` before creating project-local worktree
-
-### Assuming directory location
-
-- **Problem:** Creates inconsistency, violates project conventions
-- **Fix:** Follow priority: explicit instructions > existing project-local directory > default
-
-### Proceeding with failing tests
-
-- **Problem:** Can't distinguish new bugs from pre-existing issues
-- **Fix:** Report failures, get explicit permission to proceed
 
 ## Red Flags
 
@@ -190,8 +149,9 @@ Ready to implement <feature-name>
 - Use `git worktree add` when you have a native worktree tool (e.g., `EnterWorktree`). This is the #1 mistake — if you have it, use it.
 - Skip Step 1a by jumping straight to Step 1b's git commands
 - Create worktree without verifying it's ignored (project-local)
-- Skip baseline test verification
-- Proceed with failing tests without asking
+- Skip selective baseline evidence
+- Replace a missing focused command with a repository-wide suite
+- Call selective evidence globally clean
 
 **Always:**
 - Run Step 0 detection first
@@ -199,4 +159,4 @@ Ready to implement <feature-name>
 - Follow directory priority: explicit instructions > existing project-local directory > default
 - Verify directory is ignored for project-local
 - Auto-detect and run project setup
-- Verify clean test baseline
+- Record frozen SHA, CI status, and exact selective baseline scope
