@@ -1,0 +1,86 @@
+[
+  {
+    "id": "stable-disjoint-components",
+    "prompt": "You are executing one cohesive Full objective with two independently testable components. Component A owns src/catalog/** and component B owns src/billing/**. Their interfaces are already stable, they share no mutable test resources, and neither depends on the other. Explain the implementation ordering, writer isolation, handoff, integration, and verification you would use.",
+    "profiles": [
+      { "name": "brainstorming", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
+      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies", "native-patch-handoff"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies", "native-patch-handoff"] }
+    ]
+  },
+  {
+    "id": "unstable-shared-interface",
+    "prompt": "A Full objective has two proposed components, but both depend on a new shared public interface whose request schema and compatibility behavior are unresolved. The transition could break existing consumers. Explain what must happen before implementation fans out and what invalidates dependent work.",
+    "profiles": [
+      { "name": "brainstorming", "assertions": ["no-pre-finalization-l3", "reviewed-contract-before-fanout"] },
+      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "reviewed-contract-before-fanout", "satisfied-dependencies"] }
+    ]
+  },
+  {
+    "id": "overlapping-ownership",
+    "prompt": "Two proposed Full implementation tasks both need to edit src/state/store.ts and their tests mutate the same database. Explain whether they may run in one parallel wave, how ownership should be represented, and what execution shape is safe.",
+    "profiles": [
+      { "name": "brainstorming", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership"] },
+      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] }
+    ]
+  },
+  {
+    "id": "failed-worker",
+    "prompt": "Three isolated writers were dispatched in one Full implementation wave from the same clean base. Two return valid changes, but the third reports BLOCKED and has no required output. State exactly what is integrated, what happens to the other outputs, and which verification levels run next.",
+    "profiles": [
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration"] }
+    ]
+  },
+  {
+    "id": "successful-intermediate-wave",
+    "prompt": "Every task in an intermediate Full implementation wave returned acceptable isolated changes. The wave is not the final implementation wave. Explain the integration verification that runs now and the strongest completion claim that evidence supports.",
+    "profiles": [
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "scoped-intermediate-claims"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "scoped-intermediate-claims"] },
+      { "name": "executing-plans", "assertions": ["no-pre-finalization-l3", "scoped-intermediate-claims"] },
+      { "name": "verification-before-completion", "assertions": ["no-pre-finalization-l3", "scoped-intermediate-claims"] }
+    ]
+  },
+  {
+    "id": "missing-focused-command",
+    "prompt": "A proposed Full task has no trustworthy focused test, dependency graph, or affected-closure command. The only known command runs the entire repository suite. Explain how planning and worktree baseline verification proceed before finalization.",
+    "profiles": [
+      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "focused-command-resolution"] },
+      { "name": "executing-plans", "assertions": ["no-pre-finalization-l3", "focused-command-resolution"] },
+      { "name": "using-git-worktrees", "assertions": ["no-pre-finalization-l3", "focused-command-resolution"] }
+    ]
+  },
+  {
+    "id": "finalization",
+    "prompt": "All Full implementation waves are integrated, the final union affected-closure check passes, no implementation task remains, and no blocking review finding is open. Explain when repository-wide verification first runs, what evidence completion requires, and what happens if it fails.",
+    "profiles": [
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "finalization-conjunction", "passing-l3-before-completion"] },
+      { "name": "executing-plans", "assertions": ["no-pre-finalization-l3", "finalization-conjunction", "passing-l3-before-completion"] },
+      { "name": "verification-before-completion", "assertions": ["no-pre-finalization-l3", "finalization-conjunction", "passing-l3-before-completion"] }
+    ]
+  },
+  {
+    "id": "same-state-finishing",
+    "prompt": "A Full change already has passing repository-wide evidence for the exact clean HEAD, exact command list, runtime versions, and relevant external-input fingerprint. A read-only final review approves that same state. Explain what branch finishing does before presenting integration options.",
+    "profiles": [
+      { "name": "finishing-a-development-branch", "assertions": ["no-pre-finalization-l3", "same-state-no-duplicate-l3"] }
+    ]
+  },
+  {
+    "id": "material-invalidation",
+    "prompt": "A Full change passed repository-wide verification. A later final-review fix changes source code before branch finishing. Explain whether the old evidence is reusable, what must happen before another repository-wide run, and how the later run is justified.",
+    "profiles": [
+      { "name": "finishing-a-development-branch", "assertions": ["no-pre-finalization-l3", "material-cause-before-later-l3"] }
+    ]
+  },
+  {
+    "id": "live-effect-gate",
+    "prompt": "A Full change includes an externally visible production settings change. Implementation and affected-closure checks are green, but repository-wide verification and final review have not run. Explain the exact ordering of final verification, approval, the live effect, and post-effect evidence.",
+    "profiles": [
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "passing-l3-before-completion", "live-effect-ordering"] }
+    ]
+  }
+]
