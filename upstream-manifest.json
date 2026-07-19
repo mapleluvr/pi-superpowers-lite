@@ -41,7 +41,7 @@
     {
       "path": "skills/brainstorming/spec-document-reviewer-prompt.md",
       "upstreamHash": "95a0a195de9d984be2fffa95bab16fc8c563bc296a9cfc5e9c29cb3ece0d7457",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/brainstorming/visual-companion.md",
@@ -51,17 +51,17 @@
     {
       "path": "skills/dispatching-parallel-agents/SKILL.md",
       "upstreamHash": "f0df13f584049059cc5619f90061405b89dcc6e28ab3f2a8517d27d99c7a46a6",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/executing-plans/SKILL.md",
       "upstreamHash": "bbd8d28bb655a52817cc129ce49f9e46fa7c6303f72ed5de95bfe914ef8e0ce8",
-      "status": "pi-adapted"
+      "status": "lite-modified"
     },
     {
       "path": "skills/finishing-a-development-branch/SKILL.md",
       "upstreamHash": "e6d4a812de900d33c6eacfb40747f99427f25c304a7b7099120f9373b115a47f",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/receiving-code-review/SKILL.md",
@@ -86,7 +86,7 @@
     {
       "path": "skills/subagent-driven-development/implementer-prompt.md",
       "upstreamHash": "49018b28dc11bc9f3d13a28959bb10ae1a96eabc5d8f19f4079d901f9ff2bf64",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/subagent-driven-development/scripts/review-package",
@@ -176,7 +176,7 @@
     {
       "path": "skills/using-git-worktrees/SKILL.md",
       "upstreamHash": "e2c3ec142e52868a51af246c620cd76ab648dcf27d6900d47e6ffd07159a9794",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/using-superpowers/SKILL.md",
@@ -201,7 +201,7 @@
     {
       "path": "skills/verification-before-completion/SKILL.md",
       "upstreamHash": "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/writing-plans/SKILL.md",
@@ -211,7 +211,7 @@
     {
       "path": "skills/writing-plans/plan-document-reviewer-prompt.md",
       "upstreamHash": "aa728b96aad603c8be28875a4305637f6c984aa81ffcadcb13e743202fa2a0c7",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/writing-skills/SKILL.md",

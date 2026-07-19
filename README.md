@@ -42,6 +42,35 @@ A user may request a route. New risk can escalate a task, but the workflow never
 silently downgrades after implementation starts. Verification is mandatory on
 all routes.
 
+## Fail-First Full Execution
+
+The [fail-first wave execution design](docs/superpowers/specs/2026-07-19-fail-first-wave-execution-design.md)
+applies only when cohesive Full work has at least two independently mergeable
+implementation units. A single dependency chain keeps the simpler inline path.
+
+Full designs freeze component ownership and a contract spine before fan-out;
+public, security, migration, and concurrency contracts receive independent
+review at that boundary. Plans encode a dependency graph with disjoint write
+sets, explicit inputs and outputs, and exact task-local and affected-closure
+evidence.
+
+Concurrent implementation uses isolated `worktree: true` workers and native
+patch handoff. The controller preflights the complete patch wave before one
+canonical integrator applies anything. A failed worker, ownership drift,
+conflict, or failed check quarantines the whole wave with zero partial
+integration.
+
+Verification climbs only as needed: L0 probes prerequisites, L1 proves one task,
+L2 proves the integrated affected closure, and finalization-only L3 runs the
+repository-wide suite. Use exact scope labels:
+
+- L1: `task-local checks passed`
+- L2: `affected closure passed`
+- L3: `repository-wide suite passed`
+
+A clean state-bound L3 record may be reused until code, commands, dependencies,
+or the recorded environment changes.
+
 ## Pi Runtime
 
 The package registers one Pi extension and one skill tree. The extension:
