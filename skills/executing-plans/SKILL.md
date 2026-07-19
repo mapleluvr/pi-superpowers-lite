@@ -5,68 +5,37 @@ description: Use when you have a written implementation plan to execute in a sep
 
 # Executing Plans
 
-## Overview
+Execute an approved Full plan inline in a separate session or when delegation is unavailable. Use `subagent-driven-development` instead when isolated parallel implementation is selected.
 
-Load plan, review critically, execute all tasks, report when complete.
+**Announce:** "I'm using the executing-plans skill to implement this plan."
 
-**Announce at start:** "I'm using the executing-plans skill to implement this plan."
+## Load and Review Once
 
-**Pi note:** If the optional `subagent` tool is available and execution will stay
-in the current session, use `subagent-driven-development` instead. Use this skill
-for separate-session inline execution or when delegation is unavailable.
+Read the spec, execution graph, fail-first frontier, selective baseline, finalization section, and progress ledger. Confirm the clean base and branch; never start on main/master without explicit user consent.
 
-## The Process
+Review dependencies, ownership, contract pins, L1/L2 commands, and deferred live effects. If the graph and affected closure contradict each other, return to plan review. Do not guess through missing interfaces or evidence. Create todos for unfinished tasks only.
 
-### Step 1: Load and Review Plan
-1. Read plan file
-2. Review critically - identify any questions or concerns about the plan
-3. If concerns: Raise them with your human partner before starting
-4. If no concerns: Create todos for the plan items and proceed
+## Execute Topological Waves
 
-### Step 2: Execute Tasks
+Process each topological wave in order. Within a wave, execute eligible tasks **sequentially in one writer**:
 
-For each task:
-1. Mark as in_progress
-2. Follow each step exactly (plan has bite-sized steps)
-3. Run verifications as specified
-4. Mark as completed
+1. Mark one task in progress and obey its ownership boundary.
+2. Preserve TDD RED, implement, and run the exact declared L1.
+3. Inspect the diff, commit atomically, and record only `task-local checks passed`.
+4. Stop on failure, scope drift, or contract invalidation.
 
-### Step 3: Complete Development
+After all tasks integrate, run the wave's **union L2** once and report only `affected closure passed`. Start the next wave from clean state.
 
-After all tasks complete and verified:
-- Announce: "I'm using the finishing-a-development-branch skill to complete this work."
-- **REQUIRED SUB-SKILL:** Use superpowers:finishing-a-development-branch
-- Follow that skill to verify tests, present options, execute choice
+If a focused command is missing, redesign the unit or boundary, add a focused harness, or defer it to final integration. Never substitute a repository-wide suite.
 
-## When to Stop and Ask for Help
+No task or intermediate wave may run L3. Checkpoint only scoped commits, L1/L2 evidence, blockers, and remaining waves.
 
-**STOP executing immediately when:**
-- Hit a blocker (missing dependency, test fails, instruction unclear)
-- Plan has critical gaps preventing starting
-- You don't understand an instruction
-- Verification fails repeatedly
+## Finalization
 
-**Ask for clarification rather than guessing.**
+After every wave and L2 passes, enter finalization. Run its first repository-wide L3, bind the result to clean state in a valid L3 evidence record, complete mandatory final review, and handle material invalidation as planned.
 
-## When to Revisit Earlier Steps
+Only then invoke `finishing-a-development-branch`; it may reuse the matching record.
 
-**Return to Review (Step 1) when:**
-- Partner updates the plan based on your feedback
-- Fundamental approach needs rethinking
+## Stop Conditions
 
-**Don't force through blockers** - stop and ask.
-
-## Remember
-- Review plan critically first
-- Follow plan steps exactly
-- Don't skip verifications
-- Reference skills when plan says to
-- Stop when blocked, don't guess
-- Never start implementation on main/master branch without explicit user consent
-
-## Integration
-
-**Required workflow skills:**
-- **superpowers:using-git-worktrees** - Ensures isolated workspace (creates one or verifies existing)
-- **superpowers:writing-plans** - Creates the plan this skill executes
-- **superpowers:finishing-a-development-branch** - Complete development after all tasks
+Stop for blockers, repeated scoped failure, plan contradiction, ownership collision, unstable contracts, unavailable verification boundaries, or decisions requiring approval. Return to plan review or the user instead of widening scope.
