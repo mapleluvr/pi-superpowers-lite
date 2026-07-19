@@ -88,6 +88,7 @@ patch path so the validator can hash the admitted bytes.
 Every `(caseId,target,repetition)` observation repeats the fixed evidence binding,
 references the applicable target-profile identity IDs, and records:
 
+- SHA-256 of the exact selected fixture prompt bytes;
 - generated-system-prompt path and SHA-256;
 - raw-response path and SHA-256;
 - accepted attempt number from 1 through 3;

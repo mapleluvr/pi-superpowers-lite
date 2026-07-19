@@ -147,6 +147,7 @@ function completeResults() {
             thinking: "high",
             isolationFlags,
             fixtureSha256: sha256(fixtureBytes),
+            fixturePromptSha256: sha256(fixture.prompt),
             evaluatorPromptSha256: sha256(evaluatorPrompt),
             sourceBaseSha: firstIdentity.sourceBaseSha,
             sourceBaseTree: firstIdentity.sourceBaseTree,
@@ -215,7 +216,7 @@ function reportFor(results) {
 }
 
 function validate(results, filters = {}, mutateReport) {
-  const report = reportFor(results);
+  const report = reportFor(structuredClone(results));
   mutateReport?.(report);
   return validateExecutionReport({ fixtures, ...report, repetitions: [1, 2, 3, 4, 5], ...filters });
 }
@@ -288,6 +289,7 @@ expectProvenanceInvalid((report) => { report.evidence.model = "gpt-5.6-sol-pro";
 expectProvenanceInvalid((report) => { report.evidence.thinking = "medium"; }, /thinking.*high/i);
 expectProvenanceInvalid((report) => { report.evidence.isolationFlags = [...isolationFlags].reverse(); }, /isolation flags/i);
 expectProvenanceInvalid((report) => { report.evidence.fixtureSha256 = "0".repeat(64); }, /fixture.*hash/i);
+expectProvenanceInvalid((report) => { report.results[0].evidence.fixturePromptSha256 = "0".repeat(64); }, /fixture prompt.*hash/i);
 expectProvenanceInvalid((report) => { report.evidence.evaluatorPromptSha256 = "0".repeat(64); }, /evaluator prompt.*hash/i);
 expectProvenanceInvalid((report) => {
   report.results[0].evidence.generatedSystemPromptSha256 = "0".repeat(64);

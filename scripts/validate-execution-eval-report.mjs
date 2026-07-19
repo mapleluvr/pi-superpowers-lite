@@ -438,7 +438,7 @@ function indexEvidence(entries, kind, reportRoot, errors) {
   return indexed;
 }
 
-function validateObservationEvidence({ result, profilesToValidate, globalEvidence, identityMaps, promptIndex, rawIndex, reportRoot, errors }) {
+function validateObservationEvidence({ fixture, result, profilesToValidate, globalEvidence, identityMaps, promptIndex, rawIndex, reportRoot, errors }) {
   const prefix = `${result?.caseId}/${result?.target}/${result?.repetition}`;
   const observation = result?.evidence;
   validateFixedEvidence(observation, `${prefix} observation evidence`, errors);
@@ -448,6 +448,12 @@ function validateObservationEvidence({ result, profilesToValidate, globalEvidenc
   }
   if (!sameMembers(array(observation.isolationFlags), array(globalEvidence?.isolationFlags))) {
     addError(errors, `${prefix} mixed isolation flags: observation does not match report evidence`);
+  }
+  const expectedFixturePromptHash = sha256(fixture.prompt);
+  if (!SHA256_PATTERN.test(observation.fixturePromptSha256 ?? "")) {
+    addError(errors, `${prefix} fixture prompt hash is required`);
+  } else if (observation.fixturePromptSha256 !== expectedFixturePromptHash) {
+    addError(errors, `${prefix} fixture prompt hash does not match committed fixture bytes`);
   }
   if (!observation.targetIdentityIds || typeof observation.targetIdentityIds !== "object" || Array.isArray(observation.targetIdentityIds)) {
     addError(errors, `${prefix} targetIdentityIds is required`);
@@ -599,6 +605,7 @@ export function validateExecutionReport({
     }
     const profilesToValidate = selection.profile ? [selection.profile] : [...declaredProfiles.keys()];
     validateObservationEvidence({
+      fixture,
       result,
       profilesToValidate,
       globalEvidence: evidence,
