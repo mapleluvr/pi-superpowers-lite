@@ -100,6 +100,15 @@ system-prompt, patch, and raw-response path and recomputes its SHA-256. Missing 
 mixed epochs, targets, bases, patches, prompts, settings, raw hashes, attempts, or
 identity fields fail validation.
 
+Raw Pi output is JSONL, not one JSON value. The shared parser reads every nonblank
+line as a JSON object and accepts only when the last event is `agent_settled`, the
+immediately preceding final `agent_end` has `willRetry: false`, and that end matches
+the final `agent_start` lifecycle. The terminal `message_end` in that lifecycle
+must be an assistant message with `stopReason: "stop"`, no error or tool content,
+and nonempty concatenated text blocks. Earlier retry lifecycles never satisfy a
+failed final lifecycle. Collectors must import the same parser used by the report
+validator.
+
 Profile observations may record waves and task ownership/dependencies, completed
 task IDs, shared-contract review and pin state, native handoff kind, intermediate
 claims, missing-focused-command action, finalization state, L3 and material-cause

@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import os from "node:os";
 import path from "node:path";
-import { validateExecutionReport } from "../scripts/validate-execution-eval-report.mjs";
+import { parsePiJsonlResponse, validateExecutionReport } from "../scripts/validate-execution-eval-report.mjs";
 import * as skillContract from "./helpers/skill-contract.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -86,6 +86,88 @@ function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
+function lifecycleEvents({ text = ["first", " second"], stopReason = "stop", willRetry = false, error, content = null } = {}) {
+  return [
+    { type: "agent_start" },
+    { type: "message_end", message: { role: "user", content: [{ type: "text", text: "fixture" }] } },
+    {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: content ?? [{ type: "thinking", thinking: "private" }, ...text.map((value) => ({ type: "text", text: value }))],
+        stopReason,
+        ...(error === undefined ? {} : { error }),
+      },
+    },
+    { type: "agent_end", willRetry },
+  ];
+}
+
+function piJsonl(events) {
+  return events.map((event) => JSON.stringify(event)).join("\n") + "\n";
+}
+
+function validPiJsonl(text = ["accepted response"]) {
+  return `\n${piJsonl([{ type: "session", version: 3 }, ...lifecycleEvents({ text }), { type: "agent_settled" }])}\n`;
+}
+
+function expectJsonlInvalid(raw, pattern) {
+  const parsed = parsePiJsonlResponse(raw);
+  assert.equal(parsed.valid, false);
+  assert.match(parsed.errors.join("\n"), pattern);
+}
+
+const parsedJsonl = parsePiJsonlResponse(validPiJsonl(["alpha", " beta"]));
+assert.equal(parsedJsonl.valid, true);
+assert.equal(parsedJsonl.text, "alpha beta");
+assert.equal(parsedJsonl.events.length, 6);
+
+const retryThenSuccess = parsePiJsonlResponse(piJsonl([
+  { type: "session", version: 3 },
+  ...lifecycleEvents({ text: ["failed retry"], stopReason: "error", willRetry: true }),
+  ...lifecycleEvents({ text: ["final success"] }),
+  { type: "agent_settled" },
+]));
+assert.equal(retryThenSuccess.valid, true);
+assert.equal(retryThenSuccess.text, "final success");
+
+expectJsonlInvalid("{not json}\n", /line 1.*valid JSON/i);
+expectJsonlInvalid("[]\n", /line 1.*object/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, ...lifecycleEvents()]), /final agent_settled/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, ...lifecycleEvents(), { type: "agent_settled" }, { type: "session" }]), /final agent_settled/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, { type: "agent_end", willRetry: false }, { type: "agent_settled" }]), /final agent_start/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, { type: "agent_start" }, { type: "agent_settled" }]), /final agent_end/i);
+expectJsonlInvalid(piJsonl([
+  { type: "session" },
+  { type: "agent_start" },
+  ...lifecycleEvents(),
+  { type: "agent_settled" },
+]), /unmatched agent_start/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, ...lifecycleEvents({ willRetry: true }), { type: "agent_settled" }]), /willRetry.*false/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, { type: "agent_start" }, { type: "agent_end", willRetry: false }, { type: "agent_settled" }]), /assistant message_end/i);
+expectJsonlInvalid(piJsonl([
+  { type: "session" },
+  { type: "agent_start" },
+  { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "not terminal" }], stopReason: "stop" } },
+  { type: "message_end", message: { role: "user", content: [{ type: "text", text: "terminal" }] } },
+  { type: "agent_end", willRetry: false },
+  { type: "agent_settled" },
+]), /terminal message_end.*assistant/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, ...lifecycleEvents({ stopReason: "length" }), { type: "agent_settled" }]), /stopReason.*stop/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, ...lifecycleEvents({ error: "provider failure" }), { type: "agent_settled" }]), /error-free/i);
+expectJsonlInvalid(piJsonl([
+  { type: "session" },
+  ...lifecycleEvents({ content: [{ type: "text", text: "text" }, { type: "toolCall", name: "write" }] }),
+  { type: "agent_settled" },
+]), /tool-free/i);
+expectJsonlInvalid(piJsonl([{ type: "session" }, ...lifecycleEvents({ text: [" ", "\n"] }), { type: "agent_settled" }]), /nonempty.*text/i);
+expectJsonlInvalid(piJsonl([
+  { type: "session" },
+  ...lifecycleEvents({ text: ["prior success"], willRetry: true }),
+  ...lifecycleEvents({ text: ["final failure"], stopReason: "error" }),
+  { type: "agent_settled" },
+]), /stopReason.*stop/i);
+
 const emptyPatchSha256 = sha256("");
 const litePatchPath = path.join(evidenceRoot, "lite.patch");
 writeFileSync(litePatchPath, "diff --git a/example b/example\n");
@@ -123,7 +205,7 @@ function completeResults() {
       [1, 2, 3, 4, 5].map((repetition) => {
         const rawResponsePath = path.join(evidenceRoot, `raw-${fixture.id}-${target}-${repetition}.jsonl`);
         const generatedSystemPromptPath = path.join(evidenceRoot, `system-${fixture.id}-${target}-${repetition}.md`);
-        writeFileSync(rawResponsePath, JSON.stringify({ response: `${fixture.id}/${target}/${repetition}` }) + "\n");
+        writeFileSync(rawResponsePath, validPiJsonl([`${fixture.id}/${target}/${repetition}`]));
         writeFileSync(generatedSystemPromptPath, `system prompt for ${fixture.id}/${target}/${repetition}\n`);
         const profileResults = Object.fromEntries(
           fixture.profiles.map((profile) => {
@@ -312,6 +394,16 @@ expectProvenanceInvalid((report) => { report.results[0].evidence.targetIdentityI
 expectProvenanceInvalid((report) => { report.targetIdentities.push(structuredClone(report.targetIdentities[0])); }, /duplicate target identity/i);
 expectProvenanceInvalid((report) => { report.targetIdentities[0].patchSha256 = "0".repeat(64); }, /empty patch SHA-256|patch.*hash/i);
 expectProvenanceInvalid((report) => { report.results[0].evidence.rawResponsePath = "epoch-2/raw.jsonl"; }, /quarantined.*epoch-2/i);
+expectProvenanceInvalid((report) => {
+  const invalidRawPath = path.join(evidenceRoot, "invalid-terminal-lifecycle.jsonl");
+  writeFileSync(invalidRawPath, piJsonl([{ type: "session" }, ...lifecycleEvents(), { type: "agent_end", willRetry: false }]));
+  const invalidHash = sha256(readFileSync(invalidRawPath));
+  report.results[0].evidence.rawResponsePath = invalidRawPath;
+  report.results[0].evidence.rawResponseSha256 = invalidHash;
+  report.results[0].sharedObservations.rawResponse = invalidRawPath;
+  report.evidenceIndex.rawResponses[0].path = invalidRawPath;
+  report.evidenceIndex.rawResponses[0].sha256 = invalidHash;
+}, /raw response JSONL.*final agent_settled/i);
 
 const noRedBaseline = structuredClone(baselineResults);
 for (const result of noRedBaseline) {

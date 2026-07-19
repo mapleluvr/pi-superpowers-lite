@@ -304,6 +304,90 @@ function validateProfileResult({ fixture, target, repetition, profile, profileRe
   }
 }
 
+export function parsePiJsonlResponse(rawResponse) {
+  const errors = [];
+  const source = Buffer.isBuffer(rawResponse) ? rawResponse.toString("utf8") : rawResponse;
+  if (typeof source !== "string") {
+    return { valid: false, errors: ["raw response must be a string or Buffer"], events: [], text: "" };
+  }
+
+  const events = [];
+  for (const [index, line] of source.split(/\r?\n/u).entries()) {
+    if (line.trim().length === 0) continue;
+    let event;
+    try {
+      event = JSON.parse(line);
+    } catch {
+      addError(errors, `line ${index + 1} must be valid JSON`);
+      continue;
+    }
+    if (!event || typeof event !== "object" || Array.isArray(event)) {
+      addError(errors, `line ${index + 1} must contain a JSON object`);
+      continue;
+    }
+    events.push(event);
+  }
+
+  if (errors.length > 0) return { valid: false, errors, events, text: "" };
+  if (events.length === 0 || events.at(-1)?.type !== "agent_settled") {
+    addError(errors, "final agent_settled event is required");
+    return { valid: false, errors, events, text: "" };
+  }
+
+  const finalEndIndex = events.length - 2;
+  const finalEnd = events[finalEndIndex];
+  if (finalEnd?.type !== "agent_end") {
+    addError(errors, "final agent_settled must immediately follow the final agent_end");
+    return { valid: false, errors, events, text: "" };
+  }
+  let finalStartIndex = -1;
+  for (let index = finalEndIndex - 1; index >= 0; index -= 1) {
+    if (events[index]?.type === "agent_start") {
+      finalStartIndex = index;
+      break;
+    }
+  }
+  if (finalStartIndex < 0) {
+    addError(errors, "final agent_end has no matching final agent_start");
+    return { valid: false, errors, events, text: "" };
+  }
+  for (let index = finalStartIndex - 1; index >= 0; index -= 1) {
+    if (events[index]?.type === "agent_end") break;
+    if (events[index]?.type === "agent_start") {
+      addError(errors, "final lifecycle contains an unmatched agent_start");
+      break;
+    }
+  }
+  if (finalEnd.willRetry !== false) addError(errors, "final agent_end willRetry must be false");
+
+  const lifecycleEvents = events.slice(finalStartIndex + 1, finalEndIndex);
+  const terminalMessage = [...lifecycleEvents].reverse().find((event) => event?.type === "message_end");
+  if (!terminalMessage) {
+    addError(errors, "final lifecycle must contain an assistant message_end");
+    return { valid: false, errors, events, text: "" };
+  }
+  const message = terminalMessage.message;
+  if (message?.role !== "assistant") addError(errors, "terminal message_end must be an assistant message");
+  if (message?.stopReason !== "stop") addError(errors, "terminal assistant message_end stopReason must be stop");
+  if (terminalMessage.error != null || message?.error != null) {
+    addError(errors, "terminal assistant message_end must be error-free");
+  }
+  const content = array(message?.content);
+  if (
+    content.some((block) => typeof block?.type === "string" && /^tool(?:_|-)?(?:call|result|use)/iu.test(block.type)) ||
+    array(message?.toolCalls).length > 0
+  ) {
+    addError(errors, "terminal assistant message_end must be tool-free");
+  }
+  const text = content
+    .filter((block) => block?.type === "text" && typeof block.text === "string")
+    .map((block) => block.text)
+    .join("");
+  if (text.trim().length === 0) addError(errors, "terminal assistant message_end must contain nonempty concatenated text");
+
+  return { valid: errors.length === 0, errors, events, text };
+}
+
 function sha256(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -514,6 +598,17 @@ function validateObservationEvidence({ fixture, result, profilesToValidate, glob
     addError(errors, `${prefix} accepted attempt number does not match evidence index`);
   }
   validateFileHash(observation.rawResponsePath, observation.rawResponseSha256, `${prefix} raw response`, reportRoot, errors);
+  const resolvedRawPath = validateEvidencePath(observation.rawResponsePath, `${prefix} raw response`, reportRoot, errors);
+  if (resolvedRawPath) {
+    try {
+      const parsedResponse = parsePiJsonlResponse(readFileSync(resolvedRawPath));
+      for (const parserError of parsedResponse.errors) {
+        addError(errors, `${prefix} raw response JSONL: ${parserError}`);
+      }
+    } catch (error) {
+      addError(errors, `${prefix} raw response JSONL cannot be read: ${error.message}`);
+    }
+  }
   if (result?.sharedObservations?.rawResponse !== observation.rawResponsePath) {
     addError(errors, `${prefix} shared observation raw response path does not match evidence identity`);
   }
