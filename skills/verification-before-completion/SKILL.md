@@ -5,135 +5,65 @@ description: Use when about to claim work is complete, fixed, or passing, before
 
 # Verification Before Completion
 
-## Overview
-
-Claiming work is complete without verification is dishonesty, not efficiency.
-
-**Core principle:** Evidence before claims, always.
-
-**Violating the letter of this rule is violating the spirit of this rule.**
-
 ## The Iron Law
 
-```
+```text
 NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE
 ```
 
-If you haven't run the verification command in this message, you cannot claim it passes.
+Evidence before claims, always. "Full command" means the complete command that proves the stated scope, not automatically the repository-wide suite.
 
-## The Gate Function
+## Name the Scope First
 
-```
-BEFORE claiming any status or expressing satisfaction:
+Identify the claim's scope and tier before choosing a command:
 
-1. IDENTIFY: What command proves this claim?
-2. RUN: Execute the FULL command (fresh, complete)
-3. READ: Full output, check exit code, count failures
-4. VERIFY: Does output confirm the claim?
-   - If NO: State actual status with evidence
-   - If YES: State claim WITH evidence
-5. ONLY THEN: Make the claim
+| Tier | Evidence scope | Permitted success language |
+|---|---|---|
+| L0 | cheapest prerequisite or structural probe | name that probe only |
+| L1 | one task's owned behavior | `task-local checks passed` |
+| L2 | integrated affected dependency closure | `affected closure passed` |
+| L3 | complete finalization suite | `repository-wide suite passed` |
 
-Skip any step = lying, not verifying
-```
+L1 or L2 evidence must not support "all checks passed," whole-change completion, or a repository-wide claim. Conversely, do not run L3 merely to prove an L1 or L2 claim. The plan's finalization gate owns L3.
 
-## Common Failures
+## Verification Gate
 
-| Claim | Requires | Not Sufficient |
-|-------|----------|----------------|
-| Tests pass | Test command output: 0 failures | Previous run, "should pass" |
-| Linter clean | Linter output: 0 errors | Partial check, extrapolation |
-| Build succeeds | Build command: exit 0 | Linter passing, logs look good |
-| Bug fixed | Test original symptom: passes | Code changed, assumed fixed |
-| Regression test works | Red-green cycle verified | Test passes once |
-| Agent completed | VCS diff shows changes | Agent reports "success" |
-| Requirements met | Line-by-line checklist | Tests passing |
+Before any positive status claim:
 
-## Red Flags - STOP
+1. **IDENTIFY:** State the exact claim, scope, tier, and command that proves it.
+2. **RUN:** Execute that exact command fresh and to completion. Stop on the first failed tier; do not climb to a more expensive tier.
+3. **READ:** Inspect complete output, exit code, failure count, warnings relevant to the claim, and generated artifacts.
+4. **BIND:** Record the exact command, exit code/result, timestamp, `HEAD` or tree identity, dirty state, and material tool/runtime versions.
+5. **COMPARE:** Confirm current state still matches the record. If source, dependencies, command, environment fingerprint, or dirty state changes, the evidence is invalid for the changed scope.
+6. **CLAIM:** Use only the tier's permitted language and name remaining unverified scope.
 
-- Using "should", "probably", "seems to"
-- Expressing satisfaction before verification ("Great!", "Perfect!", "Done!", etc.)
-- About to commit/push/PR without verification
-- Trusting agent success reports
-- Relying on partial verification
-- Thinking "just this once"
-- Tired and wanting work over
-- **ANY wording implying success without having run verification**
+A passing command with stale state, a partial invocation, or a broader claim is not verification.
 
-## Rationalization Prevention
+## Evidence Examples
 
-| Excuse | Reality |
-|--------|---------|
-| "Should work now" | RUN the verification |
-| "I'm confident" | Confidence ≠ evidence |
-| "Just this once" | No exceptions |
-| "Linter passed" | Linter ≠ compiler |
-| "Agent said success" | Verify independently |
-| "I'm tired" | Exhaustion ≠ excuse |
-| "Partial check is enough" | Partial proves nothing |
-| "Different words so rule doesn't apply" | Spirit over letter |
+| Claim | Required fresh evidence | Not sufficient |
+|---|---|---|
+| Bug fixed locally | original symptom plus focused regression at L1 | code inspection |
+| Task ready to integrate | declared L1 on owned state | unrelated tests |
+| Wave integrated | union L2 on integrated tree | individual task runs |
+| Whole change complete | final L3 record plus required review | L1/L2 extrapolation |
+| Build succeeds | actual build command | lint or typecheck alone |
 
-## Key Patterns
+For TDD, preserve a genuine RED caused by missing behavior, then GREEN on the same focused test. A test that only ever passed is not regression proof.
 
-**Tests:**
-```
-✅ [Run test command] [See: 34/34 pass] "All tests pass"
-❌ "Should pass now" / "Looks correct"
-```
+## Agents and External Reports
 
-**Regression tests (TDD Red-Green):**
-```
-✅ Write → Run (pass) → Revert fix → Run (MUST FAIL) → Restore → Run (pass)
-❌ "I've written a regression test" (without red-green verification)
-```
+An agent report is a lead, not evidence. Inspect the VCS diff and rerun the command at the tier you intend to claim. If an external report references file-backed artifacts, verify they exist and match their recorded hashes.
 
-**Build:**
-```
-✅ [Run build] [See: exit 0] "Build passes"
-❌ "Linter passed" (linter doesn't check compilation)
-```
+## Red Flags
 
-**Requirements:**
-```
-✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
-❌ "Tests pass, phase complete"
-```
+Stop before claiming success when:
 
-**Agent delegation:**
-```
-✅ Agent reports success → Check VCS diff → Verify changes → Report actual state
-❌ Trust agent report
-```
+- output is missing, truncated, stale, or from a different state;
+- wording includes "should," "probably," or "seems";
+- only part of the named command ran;
+- a lower tier is being generalized upward;
+- an agent said DONE but the diff or evidence was not checked;
+- final review or live-effect smoke remains outstanding.
 
-## Why This Matters
-
-From 24 failure memories:
-- your human partner said "I don't believe you" - trust broken
-- Undefined functions shipped - would crash
-- Missing requirements shipped - incomplete features
-- Time wasted on false completion → redirect → rework
-- Violates: "Honesty is a core value. If you lie, you'll be replaced."
-
-## When To Apply
-
-**ALWAYS before:**
-- ANY variation of success/completion claims
-- ANY expression of satisfaction
-- ANY positive statement about work state
-- Committing, PR creation, task completion
-- Moving to next task
-- Delegating to agents
-
-**Rule applies to:**
-- Exact phrases
-- Paraphrases and synonyms
-- Implications of success
-- ANY communication suggesting completion/correctness
-
-## The Bottom Line
-
-**No shortcuts for verification.**
-
-Run the command. Read the output. THEN claim the result.
-
-This is non-negotiable.
+State the actual failure or unverified boundary plainly. Run the evidence first, then make the scope-qualified claim.
