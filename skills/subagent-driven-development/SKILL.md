@@ -7,214 +7,88 @@ description: Use for Full-route work when executing an approved implementation p
 
 ## Overview
 
-Execute an approved Full-route plan with a fresh implementer for each task,
-implementer tests and self-review, risk-gated task-level review, and one mandatory
-final whole-branch review.
+Execute an approved Full plan with isolated implementers, native patch handoffs, one canonical integrator, scoped verification, risk-gated task review, and a mandatory final whole-branch review.
 
-**Core principle:** Isolate implementation context, spend independent review where
-risk warrants it, and preserve one complete final quality gate.
+**Core principle:** parallelize only proved-independent writes; quarantine uncertainty; pay repository-wide verification once at finalization.
 
 ## Route Gate
 
-Use this skill only for Full-route work with an approved spec and implementation
-plan. Standard Inline work stays in the current agent without plan artifacts,
-worktrees, or subagents. Micro work never uses this workflow.
+Use this skill only for Full work with an approved spec and executable plan. Wave execution requires **two or more independently mergeable implementation units**. A single dependency chain stays inline through `executing-plans`; shared mutable ownership or an unsplit transactional invariant stays under one writer.
 
-Use SDD when tasks are sufficiently independent to hand to fresh implementers in
-the current session. Use `executing-plans` when the plan will run in another
-session. If task boundaries share mutable state or require continuous context,
-execute manually under the Full contract instead of forcing delegation.
+Standard work remains Inline without Full artifacts. Micro work never uses SDD.
 
-## Process
+## Pre-Flight
 
-1. Read the plan once and create the task ledger.
-2. Check `.superpowers/sdd/progress.md`; completed entries are authoritative.
-3. Perform one pre-flight contradiction scan before the first unfinished task.
-4. For each unfinished task, extract a task brief and dispatch one fresh
-   implementer with an explicit model.
-5. Require the implementer to run focused tests, self-review, commit, and write a
-   report containing commands and results.
-6. Evaluate task-level risk. Dispatch a task reviewer only when the task meets the
-   high-risk predicate below.
-7. Record the approved or routine verified task in the ledger before continuing.
-8. After every task, run the complete verification required by the plan.
-9. Generate a whole-branch review package and dispatch the mandatory final review.
-10. If final review reports blocking findings, make one consolidated fix wave,
-    rerun the complete verification, and request re-review with the new evidence.
-11. Finish the branch only after the final verdict is clean.
+Read the plan once and create `.superpowers/sdd/progress.md`. Before dispatch:
 
-Do not pause between tasks for routine confirmation. Stop only for an unresolved
-blocker, a real plan contradiction, or a decision that cannot be delegated.
+- resolve plan/spec contradictions and missing selective commands;
+- require reviewed, pinned high-risk contract spines before their consumers fan out;
+- verify graph dependencies, `owns` sets, and mutable-resource isolation;
+- defer settings, migrations, deploys, destructive cutovers, and other live effects;
+- record the branch start and exact clean `HEAD`, tree, and status.
+
+Do not silently guess through a contradiction.
+
+## Native Patch Waves
+
+For each topological wave:
+
+1. Freeze one clean wave base (`WAVE_BASE`, tree, and empty status). A **single canonical integrator** owns the real checkout.
+2. Extract one brief per task with exact `dependsOn`, `owns`, risk, and declared L1. Dispatch one native parallel group with `worktree: true`; `failFast` is only an optimization.
+3. Each implementer runs task L1, self-review, and commits only owned paths. Native Pi destroys its temporary branch/worktree after capture; the native handoff is a **patch**, not a branch merge. Persistent-branch language applies only to separately managed worktrees.
+4. Wait for every worker and captured patch. Any failed, blocked, missing, or unresolved worker quarantines the entire wave and **integrates zero** patches.
+5. Before any patch is applied anywhere, preflight the complete set: every required patch is non-empty; changed paths are a subset of `owns`, including renames and deletions; same-wave write sets do not overlap; and `git apply --check` passes against the unchanged frozen base. Any mismatch integrates zero.
+6. Complete risk-gated task review where required. Critical or Important findings block the whole wave.
+7. Apply approved patches in plan order on canonical. After each apply, run only its dedicated L1, inspect the diff, and make the declared atomic commit. A conflict, path drift, shared-resource collision, or contract mismatch is re-planning evidence, not ad-hoc conflict surgery.
+8. Run the wave's **union L2** affected closure once. If it fails, remove any uncommitted apply, revert the wave's canonical commits without rewriting history, verify the original tree, and redispatch from a new clean base.
+9. Record commits and scoped evidence in the ledger. Start the next wave only from clean state.
+
+No task or intermediate wave runs repository-wide L3.
 
 ## Risk-Gated Task Review
 
-Evaluate task-level risk from behavior and blast radius, not file count. Dispatch
-an independent task reviewer when a task crosses any of these boundaries:
+Evaluate task-level risk from behavior and blast radius, not file count. Dispatch an independent task reviewer for:
 
 - public/shared contracts or cross-module interfaces;
 - authentication, authorization, security, privacy, or sensitive data;
 - schema changes, migrations, destructive persistence, or rollback-sensitive data;
 - concurrency, ordering, retries, asynchronous lifecycle, or distributed state;
 - irreversible actions or high blast radius;
-- acceptance evidence that is ambiguous or cannot be checked by the implementer.
+- ambiguous acceptance evidence.
 
-Routine tasks do not dispatch a task reviewer. They still require implementer
-tests, self-review, a clean diff, and ledger evidence. If implementation reveals
-new risk, reclassify the task and add review before moving on.
+Routine tasks do not dispatch a task reviewer. They still require implementer tests, self-review, a clean owned patch, and ledger evidence. Newly revealed risk upgrades the task before integration. Critical or Important findings block progression; re-review carries the new diff, remaining risk, and new evidence.
 
-A task reviewer returns separate spec-compliance and code-quality verdicts.
-Critical or Important findings block progression. Fix them, rerun the covering
-tests, and provide the new diff, remaining risk, and new evidence for re-review.
-
-Task-level review never replaces the final whole-branch review.
-
-## Final Review
-
-The final whole-branch review is mandatory for every SDD execution. It evaluates
-the complete change against the approved spec, plan, global constraints, test
-evidence, task interactions, and migration risk.
-
-Build the review package from the branch starting point through `HEAD`, not
-`HEAD~1`. Include the commit list, diff stat, full diff, verification report, and
-known residual risks. Use the most capable available reviewer model.
-
-If blocking findings remain, dispatch one fixer with the complete findings list
-or fix them in the controlling session when delegation is unavailable. This is
-one consolidated fix wave, not one context rebuild per finding. Then rerun the
-full suite and request re-review.
-
-## Pre-Flight Plan Review
-
-Before execution, scan once for:
-
-- tasks that contradict each other or global constraints;
-- a plan-mandated action that the review rubric would reject;
-- missing interfaces between dependent tasks;
-- verification commands that cannot establish their claimed evidence;
-- active settings or migration steps scheduled before the final review.
-
-Batch all discovered contradictions into one decision request. When the human has
-delegated approval authority, use that reviewer and record the verdict. Do not
-silently choose between contradictory requirements.
+Task-level risk review never replaces the final whole-branch review.
 
 ## Implementer Dispatch
 
-Use one writer for a shared worktree. Never run parallel implementers against the
-same files.
+Pass artifact paths, not the full plan or session history. A brief names the frozen base, owned paths, exact declared L1, interfaces, report path, and model. The implementer must not run L2, package-wide, repository-wide, migration, deployment, or settings effects. It reports only task-local evidence and concerns.
 
-Before dispatch:
+Treat statuses explicitly: `SOURCE_READY`, `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, or `BLOCKED`. Only `SOURCE_READY` with a complete report and patch may enter complete-set preflight. Never turn a failed dispatch into implied approval.
 
-1. Record the exact base commit.
-2. Extract only the current task with `scripts/task-brief`.
-3. Name a report file beside the brief.
-4. Supply the package root, required interfaces, and any prior decision the brief
-   cannot know.
-5. Specify the model explicitly.
+## Finalization and L3
 
-The implementer must:
+Enter finalization only after all waves, union L2 checks, cleanup, and ledger entries pass with no unresolved findings. SDD owns the first repository-wide L3.
 
-- read the task brief first;
-- use TDD for behavior changes;
-- preserve unrelated user changes;
-- run the focused and regression commands named by the task;
-- inspect its own diff;
-- commit only task-scoped files;
-- write the report with commands, observed results, commit, and concerns.
+Run the exact declared L3 commands fail-first. On success, write a reusable evidence record bound to:
 
-Do not paste the full plan, session history, or prior task summaries into the
-prompt. Pass paths to artifacts instead.
+- clean HEAD, tree, and status before and after every command;
+- exact commands and passing results;
+- relevant tool/runtime versions;
+- hashes or identities of relevant non-secret external inputs (never secret values).
 
-## Implementer Status
+Then dispatch the mandatory final whole-branch review from the recorded branch start through `HEAD`, including the spec, plan, commits, full diff, L1/L2/L3 evidence, known risk, and deferred live effects.
 
-Handle status explicitly:
+If review finds blockers, perform **one consolidated fix wave**. Run focused L1/L2 for fixes. A source, test, build, dependency, command, base, or relevant environment change is **material invalidation**: rerun L3 once at the new clean state, then re-review with the new diff, remaining risk, and new evidence. Read-only review alone does not invalidate L3.
 
-- **DONE:** verify the report and continue to the risk decision.
-- **DONE_WITH_CONCERNS:** read concerns; resolve correctness or scope concerns
-  before review or ledger completion.
-- **NEEDS_CONTEXT:** supply the missing information and resume the same task.
-- **BLOCKED:** determine whether the cause is missing context, model capability,
-  task size, or a bad plan. Change the input before retrying.
+Live effects occur only after passing L3 and final approval. Run post-effect smoke evidence, then invoke `finishing-a-development-branch`, which may reuse the exact matching L3 record.
 
-Never turn a failed dispatch into an implied approval.
+## Durable Progress and Handoffs
 
-## Review Packages
+The ignored ledger is the recovery map. Record wave base, task/patch identities, commits, L1/L2 status, review decisions, L3 identity, and residual risk. Trust it and Git history after compaction.
 
-For a high-risk task, generate `scripts/review-package BASE HEAD` using the base
-recorded before its implementer started. Give the reviewer three paths: task
-brief, implementer report, and review package.
-
-The review prompt must state the task's binding constraints without pre-judging
-findings. Do not tell a reviewer what not to flag or ask it to rerun evidence the
-implementer already recorded unless that evidence is stale or suspect.
-
-For final review, generate a package from the repository's branch starting point
-(or Git empty tree for a root-history review) through `HEAD` so no initial commit
-is omitted.
-
-## Durable Progress
-
-The ignored ledger at `.superpowers/sdd/progress.md` is the recovery map. Each
-completed line records the task, commit range, review decision when required, and
-verification status. Trust the ledger and Git history after compaction.
-
-Example:
-
-```text
-Task 3: complete (commits abc1234..def5678, high-risk review clean)
-Task 4: complete (commit fed4321, routine task verification clean)
-```
-
-Do not re-dispatch a completed task. Do not use destructive cleanup commands that
-remove the ledger.
-
-## Model Selection
-
-Use the least expensive model that can reliably complete the role:
-
-- mechanical task with complete instructions: fast implementation model;
-- multi-file integration or debugging: standard model;
-- architecture, security, migration, or final review: strongest model;
-- reviewer: enough judgment for the task's actual risk.
-
-Turn count matters more than nominal token price. Always specify the model.
-
-## File Handoffs
-
-- **Task brief:** exact task requirements and values.
-- **Implementer report:** commit, commands, results, concerns, and self-review.
-- **Task review package:** brief, report, commit list, and full task diff.
-- **Final review package:** complete branch history, full diff, verification, and
-  residual risks.
-
-Keep large content in files and pass paths. The controlling session owns the
-ledger and synthesis.
+Keep briefs, implementer reports, patch hashes, review packages, and large evidence in files. The controller owns synthesis and canonical writes.
 
 ## Red Flags
 
-Never:
-
-- start SDD without an approved Full plan;
-- run multiple writers in one worktree;
-- omit implementer tests or self-review;
-- skip a task reviewer when the high-risk predicate matches;
-- dispatch task reviewers for every routine task by default;
-- accept a review without separate spec and quality verdicts;
-- continue with unresolved Critical or Important findings;
-- build a review package from `HEAD~1` for a multi-commit task;
-- let task review replace the final whole-branch review;
-- split final findings into repeated independent fix waves;
-- mark migration complete before post-migration smoke evidence exists.
-
-## Integration
-
-Required Full workflow skills:
-
-- `using-git-worktrees` - create isolation when the environment is not already isolated;
-- `writing-plans` - produce the approved intent-level plan;
-- `test-driven-development` - establish RED/GREEN evidence for behavior changes;
-- `requesting-code-review` - define task and final review requests;
-- `verification-before-completion` - require fresh completion evidence;
-- `finishing-a-development-branch` - close the branch after a clean final gate.
-
-Templates and scripts in this skill directory remain the operational helpers for
-task briefs, reports, workspaces, and review packages.
+Never run parallel writers on overlapping paths, admit only part of a failed wave, merge a native temporary branch, call L1/L2 repository-wide completion, run early L3, skip required review, use `HEAD~1` as the whole-branch base, store secrets in evidence, or execute live effects before the final gates.
