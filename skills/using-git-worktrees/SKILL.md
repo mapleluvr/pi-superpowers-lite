@@ -101,22 +101,9 @@ cd "$path"
 
 ## Step 2: Project Setup
 
-Auto-detect and run appropriate setup:
+Do not infer or run setup from marker files. Use only the approved plan's exact **plan-declared dependency-only** setup, and record its command and purpose. Lifecycle hooks or scripts must be disabled or suppressed where the ecosystem permits; for example, a plan may use `npm ci --ignore-scripts`, `cargo fetch`, or `go mod download`.
 
-```bash
-# Node.js
-if [ -f package.json ]; then npm install; fi
-
-# Rust
-if [ -f Cargo.toml ]; then cargo build; fi
-
-# Python
-if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-if [ -f pyproject.toml ]; then poetry install; fi
-
-# Go
-if [ -f go.mod ]; then go mod download; fi
-```
+Setup is not verification. If a command can build project code, execute lifecycle hooks, run tests, migrate data, or affect external state, it must be an explicit scoped L1/L2 command or be deferred to finalization L3. An unclassified or build-capable setup command blocks implementation until the plan supplies a safe boundary.
 
 ## Step 3: Record Selective Baseline
 
@@ -158,5 +145,5 @@ Scope: <paths/contracts; not globally clean>
 - Prefer native tools over git fallback
 - Follow directory priority: explicit instructions > existing project-local directory > default
 - Verify directory is ignored for project-local
-- Auto-detect and run project setup
+- Run only plan-declared dependency-only setup with lifecycle execution suppressed
 - Record frozen SHA, CI status, and exact selective baseline scope

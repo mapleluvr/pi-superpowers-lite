@@ -76,14 +76,19 @@ Preserve metadata for every attempt and record the accepted attempt number.
 A report is an object with `evidence`, `targetIdentities`, `evidenceIndex`, and
 `results`. The report evidence fixes epoch `3`, provider `Mapleluv`, model
 `claude-sonnet-4-6`, thinking `high`, the ordered isolation flags, the committed
-fixture path/hash, and the common evaluator-prompt path/hash.
+fixture path/hash, the common evaluator-prompt path/hash, and
+`sourceRepositoryPath`. That repository path must resolve to the current package
+Git root; a report cannot substitute an unrelated repository.
 
 Each `(target,profile)` has exactly one target identity containing the frozen
 source base SHA/tree, wave-attempt ID, admitted patch SHA-256, candidate input
 SHA/tree, and the same prompt/model/settings hashes. Baseline uses the SHA-256 of
 an empty file as its patch identity and uses the Task 1 source commit/tree as both
 its source base and candidate input identity. Candidate identities also supply a
-patch path so the validator can hash the admitted bytes.
+patch path. The validator resolves both commits and trees through Git, loads the
+source tree into a temporary index, applies the exact patch with
+`git apply --cached`, and requires `git write-tree` to equal the claimed candidate
+tree. This never mutates the package worktree.
 
 Every `(caseId,target,repetition)` observation repeats the fixed evidence binding,
 references the applicable target-profile identity IDs, and records:
@@ -94,11 +99,12 @@ references the applicable target-profile identity IDs, and records:
 - accepted attempt number from 1 through 3;
 - shared observations and all fixture-declared `profileResults`.
 
-`evidenceIndex.systemPrompts` and `evidenceIndex.rawResponses` contain one unique
-entry per observation. The validator reads every supplied fixture, evaluator,
-system-prompt, patch, and raw-response path and recomputes its SHA-256. Missing or
-mixed epochs, targets, bases, patches, prompts, settings, raw hashes, attempts, or
-identity fields fail validation.
+`evidenceIndex.systemPrompts` and `evidenceIndex.rawResponses` contain exactly
+one unique entry per selected observation; missing and orphan index entries fail.
+The validator reads every supplied fixture, evaluator, system-prompt, patch, and
+raw-response path and recomputes its SHA-256. Missing or mixed epochs, targets,
+bases, patches, prompts, settings, raw hashes, attempts, or identity fields fail
+validation.
 
 Raw Pi output is JSONL, not one JSON value. The shared parser reads every nonblank
 line as a JSON object and accepts only when the last event is `agent_settled`, the
@@ -109,12 +115,23 @@ and nonempty concatenated text blocks. Earlier retry lifecycles never satisfy a
 failed final lifecycle. Collectors must import the same parser used by the report
 validator.
 
-Profile observations may record waves and task ownership/dependencies, completed
-task IDs, shared-contract review and pin state, native handoff kind, intermediate
-claims, missing-focused-command action, finalization state, L3 and material-cause
-events, live-effect ordering, and evidence reuse. Normalize only behavior present
-in the raw response. Preserve generated prompts and raw Pi JSON separately under
-the ignored controller evidence root. Never manufacture an absent observation.
+Profile observations record a strictly ordered, uniquely identified `events`
+array. Supported events cover L0, fanout, L1/L2, finalization start, L3, material
+cause, approval, completion, live effect, post-effect smoke, and finishing. Every
+L3 and finishing event carries clean HEAD/tree, exact command-set hash, and
+non-secret environment-fingerprint hash. Assertions resolve references and prove
+ordering rather than trusting `after...` booleans.
+
+Wave tasks use normalized `owns` and `mutableResources`. Ownership accepts exact
+repository-relative paths or a terminal `/**` bounded subtree only; absolute
+paths, parent traversal, and other glob syntax are invalid. Same-wave bounded
+subtrees must not intersect, and mutable-resource identities such as databases,
+ports, caches, or services must be unique across tasks. A graphless serial chain
+uses `serialTasks` and no fanout event.
+
+Normalize only behavior present in the raw response. Preserve generated prompts
+and raw Pi JSON separately under the ignored controller evidence root. Never
+manufacture an absent observation.
 
 ## Cardinality and Modes
 

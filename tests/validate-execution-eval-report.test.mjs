@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -24,9 +25,16 @@ const isolationFlags = [
   "--mode",
   "json",
 ];
-const sourceBaseSha = "a".repeat(40);
-const sourceBaseTree = "b".repeat(40);
-const liteCandidateTree = "c".repeat(40);
+function git(...args) {
+  return execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
+}
+
+const sourceBaseSha = git("rev-parse", "HEAD^");
+const sourceBaseTree = git("rev-parse", `${sourceBaseSha}^{tree}`);
+const liteCandidateSha = git("rev-parse", "HEAD");
+const liteCandidateTree = git("rev-parse", `${liteCandidateSha}^{tree}`);
+const litePatchPath = path.join(evidenceRoot, "lite.patch");
+writeFileSync(litePatchPath, execFileSync("git", ["diff", "--binary", `${sourceBaseSha}..${liteCandidateSha}`], { cwd: root }));
 const profileKeys = [
   "brainstorming",
   "writing-plans",
@@ -38,23 +46,89 @@ const profileKeys = [
   "finishing-a-development-branch",
 ];
 
+const STATE_ONE = Object.freeze({
+  head: "1".repeat(40),
+  tree: "2".repeat(40),
+  commandSetSha256: "3".repeat(64),
+  environmentFingerprintSha256: "4".repeat(64),
+  clean: true,
+});
+const STATE_TWO = Object.freeze({
+  head: "5".repeat(40),
+  tree: "6".repeat(40),
+  commandSetSha256: "3".repeat(64),
+  environmentFingerprintSha256: "4".repeat(64),
+  clean: true,
+});
+
 function passingProfile(assertions = []) {
   const sameState = assertions.includes("same-state-no-duplicate-l3");
+  const graphless = assertions.includes("graphless-single-chain-inline");
+  const finalL3Id = sameState ? "l3-first" : "l3-second";
+  const finalState = sameState ? STATE_ONE : STATE_TWO;
+  const events = graphless
+    ? [
+        { id: "l0-task-a", type: "l0", frontierId: "task-a", sequence: 1, passed: true },
+        { id: "l1-task-a", type: "l1", taskId: "task-a", sequence: 2, passed: true },
+        { id: "l0-task-b", type: "l0", frontierId: "task-b", sequence: 3, passed: true },
+        { id: "l1-task-b", type: "l1", taskId: "task-b", sequence: 4, passed: true },
+        { id: "l2-chain", type: "l2", sequence: 5, passed: true },
+        { id: "finalization-start", type: "finalization-start", sequence: 6 },
+        { id: "l3-first", type: "l3", sequence: 7, passed: true, state: STATE_ONE },
+      ]
+    : [
+        { id: "l0-wave-1", type: "l0", waveId: "wave-1", sequence: 1, passed: true },
+        { id: "fanout-wave-1", type: "fanout", waveId: "wave-1", sequence: 2 },
+        { id: "l1-task-a", type: "l1", waveId: "wave-1", taskId: "task-a", sequence: 3, passed: true },
+        { id: "l1-task-b", type: "l1", waveId: "wave-1", taskId: "task-b", sequence: 4, passed: true },
+        { id: "l2-wave-1", type: "l2", waveId: "wave-1", sequence: 5, passed: true },
+        { id: "finalization-start", type: "finalization-start", sequence: 6 },
+        { id: "l3-first", type: "l3", sequence: 7, passed: true, state: STATE_ONE },
+      ];
+  if (!sameState) {
+    events.push(
+      { id: "source-fix", type: "material-cause", sequence: 8, invalidatesL3EventId: "l3-first", kind: "source" },
+      { id: "l3-second", type: "l3", sequence: 9, passed: true, state: STATE_TWO, materialCauseEventId: "source-fix" },
+    );
+  }
+  events.push(
+    { id: "approval", type: "approval", sequence: 10, l3EventId: finalL3Id, approved: true },
+    { id: "completion", type: "completion", sequence: 11, l3EventId: finalL3Id },
+    { id: "deployment", type: "live-effect", sequence: 12, l3EventId: finalL3Id, approvalEventId: "approval" },
+    { id: "deployment-smoke", type: "post-effect-smoke", sequence: 13, effectEventId: "deployment", passed: true },
+    { id: "finishing", type: "finishing", sequence: 14, reusedL3EventId: finalL3Id, state: finalState },
+  );
   return {
     skillCalls: [],
-    waves: [
-      {
-        id: "wave-1",
-        tasks: [
-          { id: "task-a", owns: ["src/a.js"], dependsOn: [] },
-          { id: "task-b", owns: ["src/b.js"], dependsOn: [] },
+    executionShape: graphless ? "single-chain-inline" : "graph-waves",
+    waves: graphless
+      ? []
+      : [
+          {
+            id: "wave-1",
+            tasks: [
+              { id: "task-a", owns: ["src/a.js"], mutableResources: ["db:task-a"], dependsOn: [] },
+              { id: "task-b", owns: ["src/b.js"], mutableResources: ["db:task-b"], dependsOn: [] },
+            ],
+          },
         ],
-      },
-    ],
+    serialTasks: graphless
+      ? [
+          { id: "task-a", owns: ["src/state/store.ts"], mutableResources: ["db:shared"] },
+          { id: "task-b", owns: ["src/state/store.ts"], mutableResources: ["db:shared"] },
+        ]
+      : [],
     completedTaskIds: ["task-a", "task-b"],
     sharedContract: { stable: true, reviewed: true, pinned: true, fanoutStarted: true },
     handoffKind: "patch",
     failedWaveIntegrationCount: 0,
+    recovery: {
+      currentPatchReversed: true,
+      priorWaveCommitsReverted: true,
+      originalTreeRestored: true,
+      historyRewritten: false,
+    },
+    setupAction: "plan-declared-dependency-only",
     fullSuiteCallsBeforeFinalization: 0,
     intermediateClaims: ["task-local checks passed", "affected closure passed"],
     missingFocusedCommandAction: "focused-harness",
@@ -66,17 +140,18 @@ function passingProfile(assertions = []) {
       noBlockingReviewFindings: true,
       completed: true,
     },
-    materialCauseEvents: [{ id: "source-fix", kind: "source", sequence: 2 }],
+    events,
+    materialCauseEvents: [{ id: "source-fix", kind: "source", sequence: 8 }],
     l3Events: sameState
-      ? [{ id: "l3-first", passed: true, afterFinalization: true, sequence: 1 }]
+      ? [{ id: "l3-first", passed: true, afterFinalization: true, sequence: 7 }]
       : [
-          { id: "l3-first", passed: true, afterFinalization: true, sequence: 1 },
-          { id: "l3-second", passed: true, afterFinalization: true, materialCauseEventId: "source-fix", sequence: 3 },
+          { id: "l3-first", passed: true, afterFinalization: true, sequence: 7 },
+          { id: "l3-second", passed: true, afterFinalization: true, materialCauseEventId: "source-fix", sequence: 9 },
         ],
     completionClaimed: true,
-    completionAfterL3EventId: sameState ? "l3-first" : "l3-second",
+    completionAfterL3EventId: finalL3Id,
     finalApproval: true,
-    liveEffects: [{ id: "deployment", afterL3EventId: "l3-second", afterFinalApproval: true }],
+    liveEffects: [{ id: "deployment", afterL3EventId: finalL3Id, afterFinalApproval: true }],
     finishingEvidenceReused: true,
     pass: true,
   };
@@ -169,8 +244,6 @@ expectJsonlInvalid(piJsonl([
 ]), /stopReason.*stop/i);
 
 const emptyPatchSha256 = sha256("");
-const litePatchPath = path.join(evidenceRoot, "lite.patch");
-writeFileSync(litePatchPath, "diff --git a/example b/example\n");
 const litePatchSha256 = sha256(readFileSync(litePatchPath));
 
 function profileIdentity(target, profile) {
@@ -194,7 +267,7 @@ function targetIdentity(target, profile) {
     waveAttemptId: target === "baseline" ? "epoch-3-baseline" : "wave-1-attempt-1",
     patchPath: target === "baseline" ? undefined : litePatchPath,
     patchSha256: target === "baseline" ? emptyPatchSha256 : litePatchSha256,
-    candidateInputSha: sourceBaseSha,
+    candidateInputSha: target === "baseline" ? sourceBaseSha : liteCandidateSha,
     candidateInputTree: target === "baseline" ? sourceBaseTree : liteCandidateTree,
   };
 }
@@ -290,6 +363,7 @@ function reportFor(results) {
       fixtureSha256: sha256(fixtureBytes),
       evaluatorPromptPath,
       evaluatorPromptSha256: sha256(evaluatorPrompt),
+      sourceRepositoryPath: root,
     },
     targetIdentities: [...targetProfileKeys.values()],
     evidenceIndex: { systemPrompts, rawResponses },
@@ -392,8 +466,46 @@ expectProvenanceInvalid((report) => { report.results[0].evidence.acceptedAttempt
 expectProvenanceInvalid((report) => { delete report.results[0].evidence.candidateInputTree; }, /candidate input tree.*required/i);
 expectProvenanceInvalid((report) => { report.results[0].evidence.targetIdentityIds.brainstorming = "baseline/writing-plans"; }, /target identity.*brainstorming/i);
 expectProvenanceInvalid((report) => { report.targetIdentities.push(structuredClone(report.targetIdentities[0])); }, /duplicate target identity/i);
+expectProvenanceInvalid((report) => {
+  const fakeSha = "d".repeat(40);
+  const fakeTree = "e".repeat(40);
+  for (const identity of report.targetIdentities) {
+    identity.sourceBaseSha = fakeSha;
+    identity.sourceBaseTree = fakeTree;
+    if (identity.target === "baseline") {
+      identity.candidateInputSha = fakeSha;
+      identity.candidateInputTree = fakeTree;
+    }
+  }
+  for (const result of report.results) {
+    result.evidence.sourceBaseSha = fakeSha;
+    result.evidence.sourceBaseTree = fakeTree;
+    if (result.target === "baseline") {
+      result.evidence.candidateInputSha = fakeSha;
+      result.evidence.candidateInputTree = fakeTree;
+    }
+  }
+}, /source base commit.*(?:resolve|repository)|unknown source base commit/i);
+expectProvenanceInvalid((report) => {
+  for (const identity of report.targetIdentities.filter((entry) => entry.target === "lite")) {
+    identity.candidateInputSha = sourceBaseSha;
+    identity.candidateInputTree = sourceBaseTree;
+  }
+  for (const result of report.results.filter((entry) => entry.target === "lite")) {
+    result.evidence.candidateInputSha = sourceBaseSha;
+    result.evidence.candidateInputTree = sourceBaseTree;
+  }
+}, /patch.*(?:reconstructed|computed).*(?:candidate|tree)|candidate tree.*patch/i);
 expectProvenanceInvalid((report) => { report.targetIdentities[0].patchSha256 = "0".repeat(64); }, /empty patch SHA-256|patch.*hash/i);
 expectProvenanceInvalid((report) => { report.results[0].evidence.rawResponsePath = "epoch-2/raw.jsonl"; }, /quarantined.*epoch-2/i);
+expectProvenanceInvalid((report) => {
+  const orphan = { ...report.evidenceIndex.systemPrompts[0], caseId: "orphan-case" };
+  report.evidenceIndex.systemPrompts.push(orphan);
+}, /unexpected systemPrompts evidence identity: orphan-case/i);
+expectProvenanceInvalid((report) => {
+  const orphan = { ...report.evidenceIndex.rawResponses[0], caseId: "orphan-case" };
+  report.evidenceIndex.rawResponses.push(orphan);
+}, /unexpected rawResponses evidence identity: orphan-case/i);
 expectProvenanceInvalid((report) => {
   const invalidRawPath = path.join(evidenceRoot, "invalid-terminal-lifecycle.jsonl");
   writeFileSync(invalidRawPath, piJsonl([{ type: "session" }, ...lifecycleEvents(), { type: "agent_end", willRetry: false }]));
@@ -481,11 +593,27 @@ expectInvalid(
 
 const overlappingOwners = structuredClone(allResults);
 const overlapProfile = overlappingOwners.find(
-  (result) => result.caseId === "overlapping-ownership" && result.target === "lite" && result.repetition === 1,
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
 ).profileResults["writing-plans"];
 overlapProfile.waves[0].tasks[1].owns = ["src/a.js"];
 overlapProfile.pass = false;
 expectInvalid(validate(overlappingOwners), /writing-plans.*same-wave ownership/i);
+
+const boundedOverlap = structuredClone(allResults);
+const boundedOverlapProfile = boundedOverlap.find(
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
+).profileResults["writing-plans"];
+boundedOverlapProfile.waves[0].tasks[0].owns = ["src/**"];
+boundedOverlapProfile.waves[0].tasks[1].owns = ["src/state/store.ts"];
+expectInvalid(validate(boundedOverlap), /writing-plans.*same-wave ownership/i);
+
+const sharedMutableResource = structuredClone(allResults);
+const sharedResourceProfile = sharedMutableResource.find(
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
+).profileResults["writing-plans"];
+sharedResourceProfile.waves[0].tasks[0].mutableResources = ["db:shared"];
+sharedResourceProfile.waves[0].tasks[1].mutableResources = ["db:shared"];
+expectInvalid(validate(sharedMutableResource), /writing-plans.*mutable resource/i);
 
 const unsatisfiedDependency = structuredClone(allResults);
 const dependencyProfile = unsatisfiedDependency.find(
@@ -494,6 +622,22 @@ const dependencyProfile = unsatisfiedDependency.find(
 dependencyProfile.waves[0].tasks[1].dependsOn = ["task-z"];
 dependencyProfile.pass = false;
 expectInvalid(validate(unsatisfiedDependency), /writing-plans.*dependencies/i);
+
+const failedL0Frontier = structuredClone(allResults);
+const l0Profile = failedL0Frontier.find(
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"];
+l0Profile.events.find((event) => event.type === "l0").passed = false;
+l0Profile.pass = false;
+expectInvalid(validate(failedL0Frontier), /subagent-driven-development.*L0 frontier/i);
+
+const syntheticGraphForSerialChain = structuredClone(allResults);
+const graphlessProfile = syntheticGraphForSerialChain.find(
+  (result) => result.caseId === "overlapping-ownership" && result.target === "lite" && result.repetition === 1,
+).profileResults["executing-plans"];
+graphlessProfile.executionShape = "graph-waves";
+graphlessProfile.pass = false;
+expectInvalid(validate(syntheticGraphForSerialChain), /executing-plans.*single dependency chain.*graphless/i);
 
 const branchHandoff = structuredClone(allResults);
 const handoffProfile = branchHandoff.find(
@@ -511,6 +655,14 @@ failedProfile.failedWaveIntegrationCount = 1;
 failedProfile.pass = false;
 expectInvalid(validate(failedWaveIntegrated), /dispatching-parallel-agents.*failed wave/i);
 
+const incompleteWaveRecovery = structuredClone(allResults);
+const recoveryProfile = incompleteWaveRecovery.find(
+  (result) => result.caseId === "failed-worker" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"];
+recoveryProfile.recovery.priorWaveCommitsReverted = false;
+recoveryProfile.pass = false;
+expectInvalid(validate(incompleteWaveRecovery), /subagent-driven-development.*restore the wave base/i);
+
 const broadClaim = structuredClone(allResults);
 const claimProfile = broadClaim.find(
   (result) => result.caseId === "successful-intermediate-wave" && result.target === "lite" && result.repetition === 1,
@@ -527,21 +679,65 @@ earlyProfile.fullSuiteCallsBeforeFinalization = 1;
 earlyProfile.pass = false;
 expectInvalid(validate(preFinalL3), /executing-plans.*before finalization/i);
 
+const buildCapableSetup = structuredClone(allResults);
+const setupProfile = buildCapableSetup.find(
+  (result) => result.caseId === "missing-focused-command" && result.target === "lite" && result.repetition === 1,
+).profileResults["using-git-worktrees"];
+setupProfile.setupAction = "auto-build";
+setupProfile.pass = false;
+expectInvalid(validate(buildCapableSetup), /using-git-worktrees.*setup was not plan-declared/i);
+
 const noMaterialCause = structuredClone(allResults);
 const invalidationProfile = noMaterialCause.find(
   (result) => result.caseId === "material-invalidation" && result.target === "lite" && result.repetition === 1,
 ).profileResults["finishing-a-development-branch"];
-delete invalidationProfile.l3Events[1].materialCauseEventId;
+delete invalidationProfile.events.find((event) => event.id === "l3-second").materialCauseEventId;
 invalidationProfile.pass = false;
 expectInvalid(validate(noMaterialCause), /finishing-a-development-branch.*material cause/i);
+
+const causeBeforeFirstL3 = structuredClone(allResults);
+const causeOrderingProfile = causeBeforeFirstL3.find(
+  (result) => result.caseId === "material-invalidation" && result.target === "lite" && result.repetition === 1,
+).profileResults["finishing-a-development-branch"];
+causeOrderingProfile.events.find((event) => event.type === "material-cause").sequence = 0;
+expectInvalid(validate(causeBeforeFirstL3), /finishing-a-development-branch.*intervening material cause/i);
+
+const mismatchedReuseState = structuredClone(allResults);
+const reuseProfile = mismatchedReuseState.find(
+  (result) => result.caseId === "same-state-finishing" && result.target === "lite" && result.repetition === 1,
+).profileResults["finishing-a-development-branch"];
+const finishingEvent = reuseProfile.events.find((event) => event.type === "finishing");
+finishingEvent.state = { ...finishingEvent.state, head: "f".repeat(40) };
+expectInvalid(validate(mismatchedReuseState), /finishing-a-development-branch.*state fingerprint/i);
+
+const completionBeforeL3 = structuredClone(allResults);
+const completionProfile = completionBeforeL3.find(
+  (result) => result.caseId === "finalization" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"];
+completionProfile.events.find((event) => event.type === "completion").sequence = 6;
+expectInvalid(validate(completionBeforeL3), /subagent-driven-development.*completion.*passing.*L3/i);
 
 const earlyLiveEffect = structuredClone(allResults);
 const liveProfile = earlyLiveEffect.find(
   (result) => result.caseId === "live-effect-gate" && result.target === "lite" && result.repetition === 1,
 ).profileResults["subagent-driven-development"];
-liveProfile.liveEffects[0].afterFinalApproval = false;
+delete liveProfile.events.find((event) => event.type === "live-effect").approvalEventId;
 liveProfile.pass = false;
 expectInvalid(validate(earlyLiveEffect), /subagent-driven-development.*live effect/i);
+
+const effectBeforeApproval = structuredClone(allResults);
+const effectOrderingProfile = effectBeforeApproval.find(
+  (result) => result.caseId === "live-effect-gate" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"];
+effectOrderingProfile.events.find((event) => event.type === "live-effect").sequence = 9;
+expectInvalid(validate(effectBeforeApproval), /subagent-driven-development.*live effect.*approval/i);
+
+const noPostEffectSmoke = structuredClone(allResults);
+const smokeProfile = noPostEffectSmoke.find(
+  (result) => result.caseId === "live-effect-gate" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"];
+smokeProfile.events = smokeProfile.events.filter((event) => event.type !== "post-effect-smoke");
+expectInvalid(validate(noPostEffectSmoke), /subagent-driven-development.*post-effect smoke/i);
 
 const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 assert.equal(packageJson.files.filter((entry) => entry === "evals/execution-cases.json").length, 1);

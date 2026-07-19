@@ -1,12 +1,12 @@
 [
   {
     "id": "stable-disjoint-components",
-    "prompt": "You are executing one cohesive Full objective with two independently testable components. Component A owns src/catalog/** and component B owns src/billing/**. Their interfaces are already stable, they share no mutable test resources, and neither depends on the other. Explain the implementation ordering, writer isolation, handoff, integration, and verification you would use.",
+    "prompt": "You are executing one cohesive Full objective with two independently testable components. Component A owns src/catalog/** and component B owns src/billing/**. Their interfaces are already stable, they share no mutable test resources, and neither depends on the other. Explain the fail-first frontier and L0 gate before fan-out, then the implementation ordering, writer isolation, handoff, integration, and verification you would use.",
     "profiles": [
-      { "name": "brainstorming", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
-      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
-      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies", "native-patch-handoff"] },
-      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies", "native-patch-handoff"] }
+      { "name": "brainstorming", "assertions": ["no-pre-finalization-l3", "l0-frontier-before-work", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
+      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "l0-frontier-before-work", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "l0-frontier-before-work", "disjoint-same-wave-ownership", "satisfied-dependencies", "native-patch-handoff"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "l0-frontier-before-work", "disjoint-same-wave-ownership", "satisfied-dependencies", "native-patch-handoff"] }
     ]
   },
   {
@@ -19,19 +19,21 @@
   },
   {
     "id": "overlapping-ownership",
-    "prompt": "Two proposed Full implementation tasks both need to edit src/state/store.ts and their tests mutate the same database. Explain whether they may run in one parallel wave, how ownership should be represented, and what execution shape is safe.",
+    "prompt": "Two proposed Full implementation tasks both need to edit src/state/store.ts and their tests mutate the same database, so they form one unsplit serial dependency chain rather than independently mergeable units. Explain whether they may run in a parallel wave, whether the plan should invent a synthetic DAG, and what graphless one-writer execution shape is safe.",
     "profiles": [
-      { "name": "brainstorming", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership"] },
-      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] },
-      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "disjoint-same-wave-ownership", "satisfied-dependencies"] }
+      { "name": "brainstorming", "assertions": ["no-pre-finalization-l3", "graphless-single-chain-inline"] },
+      { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "graphless-single-chain-inline"] },
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "graphless-single-chain-inline"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "graphless-single-chain-inline"] },
+      { "name": "executing-plans", "assertions": ["no-pre-finalization-l3", "graphless-single-chain-inline"] }
     ]
   },
   {
     "id": "failed-worker",
-    "prompt": "Three isolated writers were dispatched in one Full implementation wave from the same clean base. Two return valid changes, but the third reports BLOCKED and has no required output. State exactly what is integrated, what happens to the other outputs, and which verification levels run next.",
+    "prompt": "Three isolated writers returned patches for one Full wave from the same clean base. The first patch was applied on canonical, passed dedicated L1, and was atomically committed. The second patch was then applied but its dedicated L1 failed before commit. State exactly how the current patch and prior wave commit are cleaned up, what tree must be proved, what remains integrated, and what runs next. Also state the result if a worker had reported BLOCKED before admission.",
     "profiles": [
-      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration"] },
-      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration"] }
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration", "post-apply-failure-restores-wave-base"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration", "post-apply-failure-restores-wave-base"] }
     ]
   },
   {
@@ -46,11 +48,11 @@
   },
   {
     "id": "missing-focused-command",
-    "prompt": "A proposed Full task has no trustworthy focused test, dependency graph, or affected-closure command. The only known command runs the entire repository suite. Explain how planning and worktree baseline verification proceed before finalization.",
+    "prompt": "A proposed Full task has no trustworthy focused test, dependency graph, or affected-closure command. The only known command runs the entire repository suite. The new worktree contains package.json and Cargo.toml whose ordinary install/build commands may execute lifecycle hooks or build the whole workspace. Explain how safe project setup, planning, and worktree baseline verification proceed before finalization.",
     "profiles": [
       { "name": "writing-plans", "assertions": ["no-pre-finalization-l3", "focused-command-resolution"] },
       { "name": "executing-plans", "assertions": ["no-pre-finalization-l3", "focused-command-resolution"] },
-      { "name": "using-git-worktrees", "assertions": ["no-pre-finalization-l3", "focused-command-resolution"] }
+      { "name": "using-git-worktrees", "assertions": ["no-pre-finalization-l3", "focused-command-resolution", "setup-is-plan-declared-and-non-build-capable"] }
     ]
   },
   {

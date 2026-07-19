@@ -30,6 +30,10 @@ for (const [path, upstreamHash] of expected) {
 
 assert.ok(pkg.files.includes("evals/execution-cases.json"), "execution fixtures must ship");
 assert.ok(pkg.files.includes("tests"), "focused execution contracts must ship");
+assert.ok(
+  pkg.files.includes("docs/superpowers/specs/2026-07-19-fail-first-wave-execution-design.md"),
+  "the incremental design linked by the packaged README must ship",
+);
 const aggregate = "node tests/execution-contracts/run-all.mjs";
 assert.equal(pkg.scripts.test.split(aggregate).length - 1, 1,
   "package test must register the execution aggregate exactly once");

@@ -1,5 +1,7 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -47,6 +49,24 @@ const ASSERTIONS = new Set([
   "same-state-no-duplicate-l3",
   "material-cause-before-later-l3",
   "live-effect-ordering",
+  "l0-frontier-before-work",
+  "graphless-single-chain-inline",
+  "post-apply-failure-restores-wave-base",
+  "setup-is-plan-declared-and-non-build-capable",
+]);
+const EVENT_TYPES = new Set([
+  "l0",
+  "fanout",
+  "l1",
+  "l2",
+  "finalization-start",
+  "l3",
+  "material-cause",
+  "approval",
+  "completion",
+  "live-effect",
+  "post-effect-smoke",
+  "finishing",
 ]);
 const SCOPED_CLAIMS = new Set(["task-local checks passed", "affected closure passed"]);
 const FOCUSED_ACTIONS = new Set(["redesign", "focused-harness", "defer-final-integration"]);
@@ -149,23 +169,134 @@ function resolveSelection({ fixtureMap, targets, caseIds, profiles }, errors) {
   return { targets: selectedTargets, caseIds: selectedCases, profile: selectedProfiles[0], mode: "narrow" };
 }
 
+function parseOwnedPath(value) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value !== value.trim() ||
+    value.includes("\\") ||
+    value.startsWith("/") ||
+    /^[A-Za-z]:/u.test(value) ||
+    value.includes("//")
+  ) {
+    return null;
+  }
+  const bounded = value.endsWith("/**");
+  const rawPath = bounded ? value.slice(0, -3) : value;
+  if (
+    rawPath.length === 0 ||
+    rawPath.endsWith("/") ||
+    rawPath.split("/").some((segment) => segment === "." || segment === ".." || segment.length === 0) ||
+    /[*?\[\]]/u.test(rawPath)
+  ) {
+    return null;
+  }
+  return { bounded, path: rawPath };
+}
+
+function ownedPathsIntersect(left, right) {
+  if (!left.bounded && !right.bounded) return left.path === right.path;
+  if (left.bounded && right.bounded) {
+    return left.path === right.path || left.path.startsWith(`${right.path}/`) || right.path.startsWith(`${left.path}/`);
+  }
+  const bounded = left.bounded ? left : right;
+  const exact = left.bounded ? right : left;
+  return exact.path === bounded.path || exact.path.startsWith(`${bounded.path}/`);
+}
+
 function disjointOwnership(profileResult) {
   const waves = array(profileResult?.waves);
   if (waves.length === 0) return false;
   for (const wave of waves) {
     const tasks = array(wave?.tasks);
     if (tasks.length === 0) return false;
-    const owners = new Set();
+    const priorTasks = [];
     for (const task of tasks) {
-      const ownedPaths = array(task?.owns);
-      if (ownedPaths.length === 0) return false;
-      for (const ownedPath of ownedPaths) {
-        if (typeof ownedPath !== "string" || owners.has(ownedPath)) return false;
-        owners.add(ownedPath);
+      const ownedPaths = array(task?.owns).map(parseOwnedPath);
+      if (ownedPaths.length === 0 || ownedPaths.some((ownedPath) => !ownedPath)) return false;
+      if (ownedPaths.some((ownedPath, index) => ownedPaths.slice(0, index).some((prior) => ownedPathsIntersect(ownedPath, prior)))) {
+        return false;
       }
+      for (const priorOwnedPaths of priorTasks) {
+        if (ownedPaths.some((ownedPath) => priorOwnedPaths.some((prior) => ownedPathsIntersect(ownedPath, prior)))) {
+          return false;
+        }
+      }
+      priorTasks.push(ownedPaths);
     }
   }
   return true;
+}
+
+function disjointMutableResources(profileResult) {
+  const waves = array(profileResult?.waves);
+  if (waves.length === 0) return false;
+  for (const wave of waves) {
+    const seen = new Set();
+    for (const task of array(wave?.tasks)) {
+      if (!Array.isArray(task?.mutableResources)) return false;
+      const taskResources = new Set();
+      for (const resource of task.mutableResources) {
+        if (typeof resource !== "string" || resource.length === 0 || resource !== resource.trim()) return false;
+        if (taskResources.has(resource) || seen.has(resource)) return false;
+        taskResources.add(resource);
+      }
+      for (const resource of taskResources) seen.add(resource);
+    }
+  }
+  return true;
+}
+
+function stateFingerprintValid(state) {
+  return (
+    state &&
+    typeof state === "object" &&
+    !Array.isArray(state) &&
+    SHA1_PATTERN.test(state.head ?? "") &&
+    SHA1_PATTERN.test(state.tree ?? "") &&
+    SHA256_PATTERN.test(state.commandSetSha256 ?? "") &&
+    SHA256_PATTERN.test(state.environmentFingerprintSha256 ?? "") &&
+    state.clean === true
+  );
+}
+
+function sameStateFingerprint(left, right) {
+  return (
+    stateFingerprintValid(left) &&
+    stateFingerprintValid(right) &&
+    left.head === right.head &&
+    left.tree === right.tree &&
+    left.commandSetSha256 === right.commandSetSha256 &&
+    left.environmentFingerprintSha256 === right.environmentFingerprintSha256 &&
+    left.clean === right.clean
+  );
+}
+
+function orderedEvents(profileResult) {
+  const events = array(profileResult?.events);
+  const byId = new Map();
+  let previousSequence = 0;
+  let valid = events.length > 0;
+  for (const event of events) {
+    if (
+      !event ||
+      typeof event !== "object" ||
+      Array.isArray(event) ||
+      typeof event.id !== "string" ||
+      event.id.length === 0 ||
+      byId.has(event.id) ||
+      !EVENT_TYPES.has(event.type) ||
+      !Number.isInteger(event.sequence) ||
+      event.sequence <= previousSequence
+    ) {
+      valid = false;
+      continue;
+    }
+    if ((event.type === "l3" || event.type === "finishing") && !stateFingerprintValid(event.state)) valid = false;
+    previousSequence = event.sequence;
+    byId.set(event.id, event);
+  }
+  return { valid, events, byId };
 }
 
 function dependenciesSatisfied(profileResult) {
@@ -189,16 +320,27 @@ function dependenciesSatisfied(profileResult) {
 
 function assertionFailures(assertions, profileResult) {
   const failures = [];
-  const l3Events = array(profileResult?.l3Events);
-  const materialEvents = new Map(array(profileResult?.materialCauseEvents).map((event) => [event?.id, event]));
+  const timeline = orderedEvents(profileResult);
+  const eventsOfType = (type) => timeline.events.filter((event) => event?.type === type);
+  const l3Events = eventsOfType("l3");
+  const finalizationStarts = eventsOfType("finalization-start");
   const finalization = profileResult?.finalization;
 
+  if (!timeline.valid) failures.push("ordered execution event model is invalid");
+
   for (const assertion of assertions) {
-    if (assertion === "no-pre-finalization-l3" && profileResult?.fullSuiteCallsBeforeFinalization !== 0) {
-      failures.push("repository-wide L3 before finalization");
+    if (assertion === "no-pre-finalization-l3") {
+      const finalizationStart = finalizationStarts[0];
+      if (
+        profileResult?.fullSuiteCallsBeforeFinalization !== 0 ||
+        l3Events.some((event) => !finalizationStart || event.sequence <= finalizationStart.sequence)
+      ) {
+        failures.push("repository-wide L3 occurred before finalization");
+      }
     }
-    if (assertion === "disjoint-same-wave-ownership" && !disjointOwnership(profileResult)) {
-      failures.push("same-wave ownership is not present and disjoint");
+    if (assertion === "disjoint-same-wave-ownership") {
+      if (!disjointOwnership(profileResult)) failures.push("same-wave ownership is not present and disjoint");
+      if (!disjointMutableResources(profileResult)) failures.push("same-wave mutable resource ownership is not isolated");
     }
     if (assertion === "satisfied-dependencies" && !dependenciesSatisfied(profileResult)) {
       failures.push("same-wave dependencies are present or dependencies are unsatisfied");
@@ -215,6 +357,17 @@ function assertionFailures(assertions, profileResult) {
     if (assertion === "failed-wave-zero-integration" && profileResult?.failedWaveIntegrationCount !== 0) {
       failures.push("failed wave integrated one or more changes");
     }
+    if (assertion === "post-apply-failure-restores-wave-base") {
+      const recovery = profileResult?.recovery;
+      if (
+        recovery?.currentPatchReversed !== true ||
+        recovery?.priorWaveCommitsReverted !== true ||
+        recovery?.originalTreeRestored !== true ||
+        recovery?.historyRewritten !== false
+      ) {
+        failures.push("post-apply failure did not restore the wave base without rewriting history");
+      }
+    }
     if (assertion === "scoped-intermediate-claims") {
       const claims = array(profileResult?.intermediateClaims);
       if (claims.length === 0 || claims.some((claim) => !SCOPED_CLAIMS.has(claim))) {
@@ -224,6 +377,42 @@ function assertionFailures(assertions, profileResult) {
     if (assertion === "focused-command-resolution" && !FOCUSED_ACTIONS.has(profileResult?.missingFocusedCommandAction)) {
       failures.push("missing focused command did not trigger redesign, a focused harness, or final-integration deferral");
     }
+    if (assertion === "setup-is-plan-declared-and-non-build-capable") {
+      if (!["plan-declared-dependency-only", "skip", "defer"].includes(profileResult?.setupAction)) {
+        failures.push("setup was not plan-declared dependency-only, skipped, or deferred");
+      }
+    }
+    if (assertion === "l0-frontier-before-work") {
+      const validFrontiers = array(profileResult?.waves).length > 0 && array(profileResult.waves).every((wave) => {
+        const l0 = eventsOfType("l0").filter((event) => event?.waveId === wave?.id);
+        const fanout = eventsOfType("fanout").filter((event) => event?.waveId === wave?.id);
+        const taskL1 = array(wave?.tasks).map((task) =>
+          eventsOfType("l1").find((event) => event?.waveId === wave?.id && event?.taskId === task?.id),
+        );
+        return (
+          l0.length === 1 &&
+          l0[0].passed === true &&
+          fanout.length <= 1 &&
+          (fanout.length === 0 || l0[0].sequence < fanout[0].sequence) &&
+          taskL1.every((event) => event?.passed === true && l0[0].sequence < event.sequence)
+        );
+      });
+      if (!validFrontiers) failures.push("L0 frontier did not pass before fanout and L1");
+    }
+    if (assertion === "graphless-single-chain-inline") {
+      const serialTasks = array(profileResult?.serialTasks);
+      const validSerial =
+        profileResult?.executionShape === "single-chain-inline" &&
+        array(profileResult?.waves).length === 0 &&
+        serialTasks.length > 0 &&
+        eventsOfType("fanout").length === 0 &&
+        serialTasks.every((task) => {
+          const l0 = eventsOfType("l0").find((event) => event?.frontierId === task?.id);
+          const l1 = eventsOfType("l1").find((event) => event?.taskId === task?.id);
+          return l0?.passed === true && l1?.passed === true && l0.sequence < l1.sequence;
+        });
+      if (!validSerial) failures.push("single dependency chain did not remain graphless and inline");
+    }
     if (assertion === "finalization-conjunction") {
       if (
         finalization?.began !== true ||
@@ -231,52 +420,80 @@ function assertionFailures(assertions, profileResult) {
         finalization?.l2Passed !== true ||
         finalization?.noImplementationTasks !== true ||
         finalization?.noBlockingReviewFindings !== true ||
-        finalization?.completed !== true
+        finalization?.completed !== true ||
+        finalizationStarts.length !== 1
       ) {
         failures.push("finalization preconditions were incomplete");
       }
     }
     if (assertion === "passing-l3-before-completion") {
-      const passingFinalL3Ids = new Set(
-        l3Events.filter((event) => event?.passed === true && event?.afterFinalization === true).map((event) => event?.id),
-      );
-      if (
-        profileResult?.completionClaimed !== true ||
-        !passingFinalL3Ids.has(profileResult?.completionAfterL3EventId)
-      ) {
-        failures.push("final completion did not follow a passing finalization L3");
-      }
+      const completions = eventsOfType("completion");
+      const validCompletion = completions.length > 0 && completions.every((completion) => {
+        const l3 = timeline.byId.get(completion?.l3EventId);
+        const finalizationStart = finalizationStarts[0];
+        return (
+          l3?.type === "l3" &&
+          l3.passed === true &&
+          finalizationStart &&
+          finalizationStart.sequence < l3.sequence &&
+          l3.sequence < completion.sequence
+        );
+      });
+      if (!validCompletion) failures.push("final completion did not follow a passing finalization L3");
     }
     if (assertion === "same-state-no-duplicate-l3") {
-      if (profileResult?.finishingEvidenceReused !== true || l3Events.length !== 1 || l3Events[0]?.passed !== true) {
-        failures.push("same-state finishing did not reuse one passing L3 evidence record");
+      const finishing = eventsOfType("finishing");
+      const reused = finishing.length === 1 ? timeline.byId.get(finishing[0].reusedL3EventId) : null;
+      const interveningCause = reused
+        ? eventsOfType("material-cause").some((event) => reused.sequence < event.sequence && event.sequence < finishing[0].sequence)
+        : true;
+      if (
+        finishing.length !== 1 ||
+        l3Events.length !== 1 ||
+        reused?.type !== "l3" ||
+        reused.passed !== true ||
+        reused.sequence >= finishing[0].sequence ||
+        !sameStateFingerprint(reused.state, finishing[0].state) ||
+        interveningCause
+      ) {
+        failures.push("same-state finishing did not reuse one passing L3 with an exact state fingerprint");
       }
     }
     if (assertion === "material-cause-before-later-l3") {
-      if (
-        l3Events.length < 2 ||
-        l3Events.slice(1).some((event) => {
-          const cause = materialEvents.get(event?.materialCauseEventId);
-          return (
-            !cause ||
-            !Number.isInteger(cause.sequence) ||
-            !Number.isInteger(event?.sequence) ||
-            cause.sequence >= event.sequence
-          );
-        })
-      ) {
-        failures.push("later L3 did not reference an intervening material cause");
-      }
+      const validLaterRuns = l3Events.length >= 2 && l3Events.slice(1).every((later) => {
+        const cause = timeline.byId.get(later?.materialCauseEventId);
+        const previous = timeline.byId.get(cause?.invalidatesL3EventId);
+        return (
+          cause?.type === "material-cause" &&
+          previous?.type === "l3" &&
+          previous.passed === true &&
+          previous.sequence < cause.sequence &&
+          cause.sequence < later.sequence
+        );
+      });
+      if (!validLaterRuns) failures.push("later L3 did not reference an intervening material cause");
     }
     if (assertion === "live-effect-ordering") {
-      const passingL3Ids = new Set(l3Events.filter((event) => event?.passed === true).map((event) => event?.id));
-      const effects = array(profileResult?.liveEffects);
-      if (
-        profileResult?.finalApproval !== true ||
-        effects.length === 0 ||
-        effects.some((effect) => effect?.afterFinalApproval !== true || !passingL3Ids.has(effect?.afterL3EventId))
-      ) {
-        failures.push("live effect occurred without prior passing L3 and final approval");
+      const effects = eventsOfType("live-effect");
+      const validEffects = effects.length > 0 && effects.every((effect) => {
+        const l3 = timeline.byId.get(effect?.l3EventId);
+        const approval = timeline.byId.get(effect?.approvalEventId);
+        const smoke = eventsOfType("post-effect-smoke").find((event) => event?.effectEventId === effect.id);
+        return (
+          l3?.type === "l3" &&
+          l3.passed === true &&
+          approval?.type === "approval" &&
+          approval.approved === true &&
+          approval.l3EventId === l3.id &&
+          l3.sequence < approval.sequence &&
+          approval.sequence < effect.sequence &&
+          smoke?.passed === true &&
+          effect.sequence < smoke.sequence
+        );
+      });
+      if (!validEffects) {
+        const missingSmoke = effects.some((effect) => !eventsOfType("post-effect-smoke").some((event) => event?.effectEventId === effect?.id));
+        failures.push(missingSmoke ? "live effect lacked passing post-effect smoke evidence" : "live effect occurred before passing L3 and final approval");
       }
     }
   }
@@ -292,6 +509,9 @@ function validateProfileResult({ fixture, target, repetition, profile, profileRe
   if (typeof profileResult.pass !== "boolean") {
     addError(errors, `${prefix} pass must be boolean`);
     return;
+  }
+  if (!orderedEvents(profileResult).valid) {
+    addError(errors, `${prefix} events must be a non-empty, uniquely identified, strictly ordered supported event sequence with valid L3/finishing state fingerprints`);
   }
   const failures = assertionFailures(profile.assertions, profileResult);
   const observedPass = failures.length === 0;
@@ -441,24 +661,107 @@ function validateFixedEvidence(evidence, label, errors) {
   if (!SHA256_PATTERN.test(evidence.evaluatorPromptSha256 ?? "")) addError(errors, `${label} evaluator prompt hash is required`);
 }
 
+function canonicalExistingPath(filePath) {
+  return typeof realpathSync.native === "function" ? realpathSync.native(filePath) : realpathSync(filePath);
+}
+
+function gitOutput(repositoryPath, args, extraEnvironment = {}) {
+  return execFileSync("git", args, {
+    cwd: repositoryPath,
+    encoding: "utf8",
+    env: { ...process.env, ...extraEnvironment },
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+}
+
+function validateSourceRepository(evidence, reportRoot, errors) {
+  const resolved = validateEvidencePath(evidence?.sourceRepositoryPath, "source repository", reportRoot, errors);
+  if (!resolved) return null;
+  let repositoryPath;
+  let packagePath;
+  try {
+    repositoryPath = canonicalExistingPath(resolved);
+    packagePath = canonicalExistingPath(PACKAGE_ROOT);
+  } catch (error) {
+    addError(errors, `source repository cannot be resolved: ${error.message}`);
+    return null;
+  }
+  if (repositoryPath !== packagePath) {
+    addError(errors, "source repository must resolve to the current package repository");
+    return null;
+  }
+  try {
+    const topLevel = canonicalExistingPath(gitOutput(repositoryPath, ["rev-parse", "--show-toplevel"]));
+    if (topLevel !== repositoryPath) addError(errors, "source repository path must be the Git top level");
+  } catch (error) {
+    addError(errors, `source repository Git identity cannot be resolved: ${error.message}`);
+    return null;
+  }
+  return repositoryPath;
+}
+
+function resolveCommitTree(repositoryPath, commitSha, label, errors) {
+  try {
+    const resolvedCommit = gitOutput(repositoryPath, ["rev-parse", "--verify", `${commitSha}^{commit}`]);
+    if (resolvedCommit !== commitSha) addError(errors, `${label} commit did not resolve exactly`);
+    return gitOutput(repositoryPath, ["rev-parse", "--verify", `${commitSha}^{tree}`]);
+  } catch (error) {
+    addError(errors, `${label} commit cannot resolve in source repository: ${error.message}`);
+    return null;
+  }
+}
+
+function validateGitProvenance(identity, repositoryPath, reportRoot, errors) {
+  const display = `${identity.target}/${identity.profile}`;
+  const sourceTree = resolveCommitTree(repositoryPath, identity.sourceBaseSha, `${display} source base`, errors);
+  if (sourceTree && sourceTree !== identity.sourceBaseTree) {
+    addError(errors, `${display} source base tree does not match the resolved commit tree`);
+  }
+  const candidateTree = resolveCommitTree(repositoryPath, identity.candidateInputSha, `${display} candidate input`, errors);
+  if (candidateTree && candidateTree !== identity.candidateInputTree) {
+    addError(errors, `${display} candidate input tree does not match the resolved commit tree`);
+  }
+  if (identity.target === "baseline" || !sourceTree || !candidateTree) return;
+
+  const patchPath = validateEvidencePath(identity.patchPath, `${display} patch`, reportRoot, errors);
+  if (!patchPath) return;
+  const temporaryDirectory = mkdtempSync(path.join(os.tmpdir(), "pi-superpowers-eval-index-"));
+  const indexPath = path.join(temporaryDirectory, "index");
+  try {
+    const environment = { GIT_INDEX_FILE: indexPath };
+    gitOutput(repositoryPath, ["read-tree", identity.sourceBaseTree], environment);
+    gitOutput(repositoryPath, ["apply", "--cached", "--binary", "--whitespace=nowarn", patchPath], environment);
+    const reconstructedTree = gitOutput(repositoryPath, ["write-tree"], environment);
+    if (reconstructedTree !== identity.candidateInputTree) {
+      addError(errors, `${display} patch reconstructed tree does not match the claimed candidate tree`);
+    }
+  } catch (error) {
+    addError(errors, `${display} patch cannot reconstruct the claimed candidate tree: ${error.message}`);
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
 function validateGlobalEvidence(evidence, reportRoot, errors) {
   validateFixedEvidence(evidence, "report evidence", errors);
-  if (!evidence || typeof evidence !== "object") return;
+  if (!evidence || typeof evidence !== "object") return null;
   const fixturePath = validateEvidencePath(evidence.fixturePath, "fixture", reportRoot, errors);
   if (fixturePath && fixturePath !== path.join(PACKAGE_ROOT, "evals", "execution-cases.json")) {
     addError(errors, "fixture path must reference the committed evals/execution-cases.json");
   }
   validateFileHash(evidence.fixturePath, evidence.fixtureSha256, "fixture", reportRoot, errors);
   validateFileHash(evidence.evaluatorPromptPath, evidence.evaluatorPromptSha256, "evaluator prompt", reportRoot, errors);
+  return validateSourceRepository(evidence, reportRoot, errors);
 }
 
-function validateTargetIdentities(targetIdentities, evidence, reportRoot, errors) {
+function validateTargetIdentities(targetIdentities, evidence, reportRoot, sourceRepositoryPath, errors) {
   if (!Array.isArray(targetIdentities)) {
     addError(errors, "targetIdentities must be an array");
     return { byId: new Map(), byTargetProfile: new Map() };
   }
   const byId = new Map();
   const byTargetProfile = new Map();
+  const validatedProvenance = new Set();
   for (const identity of targetIdentities) {
     const display = `${identity?.target}/${identity?.profile}`;
     if (!identity || typeof identity !== "object" || Array.isArray(identity)) {
@@ -497,7 +800,28 @@ function validateTargetIdentities(targetIdentities, evidence, reportRoot, errors
         addError(errors, `${display} baseline candidate input identity must equal its source base SHA/tree`);
       }
     } else {
+      if (identity.patchSha256 === EMPTY_PATCH_SHA256) addError(errors, `${display} Lite patch must be non-empty`);
       validateFileHash(identity.patchPath, identity.patchSha256, `${display} patch`, reportRoot, errors);
+    }
+    const provenanceKey = [
+      identity.target,
+      identity.sourceBaseSha,
+      identity.sourceBaseTree,
+      identity.patchPath ?? "",
+      identity.patchSha256,
+      identity.candidateInputSha,
+      identity.candidateInputTree,
+    ].join("\u0000");
+    if (
+      sourceRepositoryPath &&
+      !validatedProvenance.has(provenanceKey) &&
+      SHA1_PATTERN.test(identity.sourceBaseSha ?? "") &&
+      SHA1_PATTERN.test(identity.sourceBaseTree ?? "") &&
+      SHA1_PATTERN.test(identity.candidateInputSha ?? "") &&
+      SHA1_PATTERN.test(identity.candidateInputTree ?? "")
+    ) {
+      validatedProvenance.add(provenanceKey);
+      validateGitProvenance(identity, sourceRepositoryPath, reportRoot, errors);
     }
   }
   return { byId, byTargetProfile };
@@ -520,6 +844,15 @@ function indexEvidence(entries, kind, reportRoot, errors) {
     }
   }
   return indexed;
+}
+
+function validateEvidenceIndexKeys(indexed, expectedKeys, kind, errors) {
+  for (const key of indexed.keys()) {
+    if (!expectedKeys.has(key)) addError(errors, `unexpected ${kind} evidence identity: ${key.replaceAll("\u0000", "/")}`);
+  }
+  for (const key of expectedKeys) {
+    if (!indexed.has(key)) addError(errors, `missing ${kind} evidence identity: ${key.replaceAll("\u0000", "/")}`);
+  }
 }
 
 function validateObservationEvidence({ fixture, result, profilesToValidate, globalEvidence, identityMaps, promptIndex, rawIndex, reportRoot, errors }) {
@@ -655,8 +988,8 @@ export function validateExecutionReport({
   const selection = resolveSelection({ fixtureMap, targets, caseIds, profiles }, errors);
   if (!selection) return { valid: false, errors };
 
-  validateGlobalEvidence(evidence, reportRoot, errors);
-  const identityMaps = validateTargetIdentities(targetIdentities, evidence, reportRoot, errors);
+  const sourceRepositoryPath = validateGlobalEvidence(evidence, reportRoot, errors);
+  const identityMaps = validateTargetIdentities(targetIdentities, evidence, reportRoot, sourceRepositoryPath, errors);
   const promptIndex = indexEvidence(evidenceIndex?.systemPrompts, "systemPrompts", reportRoot, errors);
   const rawIndex = indexEvidence(evidenceIndex?.rawResponses, "rawResponses", reportRoot, errors);
 
@@ -666,6 +999,8 @@ export function validateExecutionReport({
       for (const repetition of REPETITIONS) expectedKeys.add(`${caseId}\u0000${target}\u0000${repetition}`);
     }
   }
+  validateEvidenceIndexKeys(promptIndex, expectedKeys, "systemPrompts", errors);
+  validateEvidenceIndexKeys(rawIndex, expectedKeys, "rawResponses", errors);
 
   const tuples = new Map();
   for (const result of results) {

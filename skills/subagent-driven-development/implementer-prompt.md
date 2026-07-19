@@ -9,10 +9,10 @@ Read first:
 - task brief: [BRIEF_FILE]
 - approved spec/contract references named by the brief
 
-Work from [WORKTREE]. Verify it is an isolated worktree at the exact frozen base in the brief. If the base, ownership, dependencies, or acceptance command differs, stop as NEEDS_CONTEXT or BLOCKED; do not guess.
+Work from [WORKTREE]. Verify it is an isolated worktree at the exact frozen base in the brief. Require the controller's passed L0 evidence to name this frontier and base. If L0 evidence is missing or mismatched, or if the base, ownership, dependencies, or acceptance command differs, stop as NEEDS_CONTEXT or BLOCKED; do not guess.
 
 Your job:
-1. Inspect the mapped baseline failure and current owned files.
+1. Inspect the mapped baseline failure, passed L0 evidence, and current owned files.
 2. For behavior changes, run the declared test before editing and preserve the intended RED.
 3. Implement only the task and only within its `owns` paths.
 4. Run the exact declared L1 until GREEN.
@@ -37,7 +37,7 @@ Self-review:
 
 Report format:
 - Status: SOURCE_READY | DONE_WITH_CONCERNS | BLOCKED | NEEDS_CONTEXT
-- Frozen base and commit created
+- Frozen base, matched passed-L0 evidence, and commit created
 - Files changed, including renames/deletions
 - TDD RED and GREEN commands with observed output
 - Exact L1 result and scope-qualified claim
