@@ -29,7 +29,7 @@ Secret values are never recorded; hash only approved non-sensitive inputs. Re-re
 
 When every field matches, reuse the record and do not duplicate L3. Pure read-only review does not invalidate it.
 
-Run the exact finalization L3 command set and write a fresh record when evidence is missing or failed, or any bound field changed. Material causes include a merge onto an updated base, final fix work, dependency changes, build or test repairs, and environment repairs. If L3 fails, report the failures and stop before presenting integration options.
+Run the exact finalization L3 command set and write a fresh record when evidence is missing or failed, or any bound field changed. Material causes include a merge onto an updated base, final fix work, dependency changes, build or test repairs, and environment repairs. For a material cause that changes source, tests, the build, or dependencies, first run the plan-declared focused L1/L2 for the repair, commit it, and prove a new clean state; then run replacement L3. If L3 fails, report the failures and stop before presenting integration options.
 
 ### Step 2: Detect Environment
 
