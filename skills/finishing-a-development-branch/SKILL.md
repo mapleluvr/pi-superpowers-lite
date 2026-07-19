@@ -15,27 +15,21 @@ Guide completion of development work by presenting clear options and handling ch
 
 ## The Process
 
-### Step 1: Verify Tests
+### Step 1: Reuse or Refresh L3 Evidence
 
-**Before presenting options, verify tests pass:**
+Locate the finalization **L3 evidence record**. It is reusable only when it passed and still matches:
 
-```bash
-# Run project's test suite
-npm test / cargo test / pytest / go test ./...
-```
+- exact `HEAD` and tree identity;
+- recorded clean/dirty state and current clean status;
+- the exact L3 command set;
+- tool and runtime versions;
+- hashes of relevant non-sensitive external config and environment fingerprints.
 
-**If tests fail:**
-```
-Tests failing (<N> failures). Must fix before completing:
+Secret values are never recorded; hash only approved non-sensitive inputs. Re-read the current state rather than trusting record metadata.
 
-[Show failures]
+When every field matches, reuse the record and do not duplicate L3. Pure read-only review does not invalidate it.
 
-Cannot proceed with merge/PR until tests pass.
-```
-
-Stop. Don't proceed to Step 2.
-
-**If tests pass:** Continue to Step 2.
+Run the exact finalization L3 command set and write a fresh record when evidence is missing or failed, or any bound field changed. Material causes include a merge onto an updated base, final fix work, dependency changes, build or test repairs, and environment repairs. If L3 fails, report the failures and stop before presenting integration options.
 
 ### Step 2: Detect Environment
 
@@ -106,10 +100,11 @@ git checkout <base-branch>
 git pull
 git merge <feature-branch>
 
-# Verify tests on merged result
-<test command>
+# The updated base and new HEAD invalidate prior evidence.
+# Run the exact finalization L3 command set on the merged target and record it.
+<L3 command set>
 
-# Only after merge succeeds: cleanup worktree (Step 6), then delete branch
+# Only after merge and merged-target L3 succeed: cleanup worktree (Step 6), then delete branch
 ```
 
 Then: Cleanup worktree (Step 6), then delete branch:
@@ -181,50 +176,11 @@ git worktree prune  # Self-healing: clean up any stale registrations
 
 **Otherwise:** The host environment (harness) owns this workspace. Do NOT remove it. If your platform provides a workspace-exit tool, use it. Otherwise, leave the workspace in place.
 
-## Quick Reference
-
-| Option | Merge | Push | Keep Worktree | Cleanup Branch |
-|--------|-------|------|---------------|----------------|
-| 1. Merge locally | yes | - | - | yes |
-| 2. Create PR | - | yes | yes | - |
-| 3. Keep as-is | - | - | yes | - |
-| 4. Discard | - | - | - | yes (force) |
-
-## Common Mistakes
-
-**Skipping test verification**
-- **Problem:** Merge broken code, create failing PR
-- **Fix:** Always verify tests before offering options
-
-**Open-ended questions**
-- **Problem:** "What should I do next?" is ambiguous
-- **Fix:** Present exactly 4 structured options (or 3 for detached HEAD)
-
-**Cleaning up worktree for Option 2**
-- **Problem:** Remove worktree user needs for PR iteration
-- **Fix:** Only cleanup for Options 1 and 4
-
-**Deleting branch before removing worktree**
-- **Problem:** `git branch -d` fails because worktree still references the branch
-- **Fix:** Merge first, remove worktree, then delete branch
-
-**Running git worktree remove from inside the worktree**
-- **Problem:** Command fails silently when CWD is inside the worktree being removed
-- **Fix:** Always `cd` to main repo root before `git worktree remove`
-
-**Cleaning up harness-owned worktrees**
-- **Problem:** Removing a worktree the harness created causes phantom state
-- **Fix:** Only clean up worktrees under `.worktrees/` or `worktrees/`
-
-**No confirmation for discard**
-- **Problem:** Accidentally delete work
-- **Fix:** Require typed "discard" confirmation
-
 ## Red Flags
 
 **Never:**
-- Proceed with failing tests
-- Merge without verifying tests on result
+- Proceed with failed or stale L3 evidence
+- Merge without rerunning L3 on the merged target
 - Delete work without confirmation
 - Force-push without explicit request
 - Remove a worktree before confirming merge success
