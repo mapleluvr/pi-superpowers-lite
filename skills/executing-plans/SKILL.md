@@ -25,7 +25,7 @@ For a graph plan, process each topological wave. For a graphless single chain, e
 4. Inspect, commit atomically, and record only `task-local checks passed`.
 5. Stop on failure, scope drift, or contract invalidation.
 
-After a graph wave, or the declared chain integration boundary, run **union L2** once and report only `affected closure passed`. Continue only from clean state.
+Graph: run **union L2** once after each wave. Graphless: run union L2 exactly once after all listed tasks, never between tasks. Report only `affected closure passed`; continue from clean state.
 
 For a missing focused command, redesign the unit or boundary, add a focused harness, or defer to final integration. Never substitute a repository-wide suite. No task or intermediate wave may run L3.
 

@@ -17,6 +17,10 @@ assert.match(skill, /sequentially.*one writer|one writer.*sequentially/is,
   "inline mode must execute eligible tasks sequentially in one writer");
 assert.match(skill, /exact.*L1/i, "each task must run its declared L1");
 assert.match(skill, /union L2/i, "each integrated wave must run union L2");
+assert.match(skill, /graphless[\s\S]{0,120}union L2[\s\S]{0,80}exactly once after all listed tasks/i,
+  "graphless chains must run exactly one union L2 after every task finishes");
+assert.match(skill, /never between tasks/i,
+  "graphless chains must not run L2 between tasks");
 assert.match(skill, /task-local checks passed/i);
 assert.match(skill, /affected closure passed/i);
 assert.match(skill, /graph.*closure.*(?:return|back).*plan review|(?:return|back).*plan review.*graph.*closure/is,
