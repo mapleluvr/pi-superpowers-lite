@@ -42,6 +42,8 @@ assert.match(readme, /docs\/superpowers\/specs\/2026-07-19-fail-first-wave-execu
 assert.match(readme, /at least two independently mergeable|two or more independently mergeable/i);
 assert.match(readme, /contract spine/i);
 assert.match(readme, /patch (?:handoff|wave)|worktree:\s*true/i);
+assert.match(readme, /(?:exact mutable resource identit|mutable resource[\s\S]{0,120}exact identit)/i);
+assert.match(readme, /post-apply L1[\s\S]{0,200}reverse[\s\S]{0,200}union-L2[\s\S]{0,200}(?:without|do not)[\s\S]{0,100}reverse/i);
 assert.match(readme, /L0.*L1.*L2.*L3/is);
 assert.match(readme, /finalization-only L3|L3.*only.*finalization/is);
 assert.match(readme, /task-local checks passed/i);

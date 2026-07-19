@@ -52,13 +52,17 @@ Full designs freeze component ownership and a contract spine before fan-out;
 public, security, migration, and concurrency contracts receive independent
 review at that boundary. Plans encode a dependency graph with disjoint write
 sets, explicit inputs and outputs, and exact task-local and affected-closure
-evidence.
+evidence. Every task also declares exact mutable resource identities for ports,
+databases, caches, services, and temp roots; `none` is explicit.
 
 Concurrent implementation uses isolated `worktree: true` workers and native
 patch handoff. The controller preflights the complete patch wave before one
 canonical integrator applies anything. A failed worker, ownership drift,
 conflict, or failed check quarantines the whole wave with zero partial
-integration.
+integration. On a post-apply L1 failure, recovery reverse-applies the current
+uncommitted patch and then reverts earlier wave commits. On a union-L2 failure,
+all patches are already committed, so recovery reverts those commits without
+reverse-applying a patch.
 
 Verification climbs only as needed: L0 probes prerequisites, L1 proves one task,
 L2 proves the integrated affected closure, and finalization-only L3 runs the

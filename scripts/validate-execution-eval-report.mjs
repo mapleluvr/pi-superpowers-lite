@@ -55,6 +55,8 @@ const ASSERTIONS = new Set([
   "setup-is-plan-declared-and-non-build-capable",
 ]);
 const EVENT_TYPES = new Set([
+  "contract-reviewed",
+  "claim",
   "l0",
   "fanout",
   "l1",
@@ -69,6 +71,19 @@ const EVENT_TYPES = new Set([
   "finishing",
 ]);
 const SCOPED_CLAIMS = new Set(["task-local checks passed", "affected closure passed"]);
+const LEGACY_PROFILE_FIELDS = [
+  "finalization",
+  "fullSuiteCallsBeforeFinalization",
+  "intermediateClaims",
+  "sharedContract",
+  "materialCauseEvents",
+  "l3Events",
+  "completionClaimed",
+  "completionAfterL3EventId",
+  "finalApproval",
+  "liveEffects",
+  "finishingEvidenceReused",
+];
 const FOCUSED_ACTIONS = new Set(["redesign", "focused-harness", "defer-final-integration"]);
 
 function addError(errors, message) {
@@ -293,29 +308,141 @@ function orderedEvents(profileResult) {
       continue;
     }
     if ((event.type === "l3" || event.type === "finishing") && !stateFingerprintValid(event.state)) valid = false;
+    if (
+      event.type === "contract-reviewed" &&
+      (
+        typeof event.contractId !== "string" ||
+        event.contractId.length === 0 ||
+        event.stable !== true ||
+        event.reviewed !== true ||
+        event.pinned !== true
+      )
+    ) valid = false;
+    if (
+      event.type === "claim" &&
+      (!SCOPED_CLAIMS.has(event.scope) || typeof event.l2EventId !== "string" || event.l2EventId.length === 0)
+    ) valid = false;
+    if (event.type === "l0" && typeof event.passed !== "boolean") valid = false;
+    if (event.type === "fanout" && (typeof event.waveId !== "string" || event.waveId.length === 0)) valid = false;
+    if (event.type === "l1" && (typeof event.taskId !== "string" || event.taskId.length === 0 || typeof event.passed !== "boolean")) valid = false;
+    if (
+      event.type === "l2" &&
+      (
+        typeof event.passed !== "boolean" ||
+        [event.waveId, event.boundaryId].filter((value) => typeof value === "string" && value.length > 0).length !== 1
+      )
+    ) valid = false;
+    if (
+      event.type === "finalization-start" &&
+      (
+        typeof event.l2EventId !== "string" ||
+        event.allWavesIntegrated !== true ||
+        event.noImplementationTasks !== true ||
+        event.noBlockingReviewFindings !== true
+      )
+    ) valid = false;
+    if (event.type === "material-cause" && (typeof event.invalidatesL3EventId !== "string" || typeof event.kind !== "string")) valid = false;
+    if (event.type === "approval" && (typeof event.l3EventId !== "string" || typeof event.approved !== "boolean")) valid = false;
+    if (event.type === "completion" && typeof event.l3EventId !== "string") valid = false;
+    if (event.type === "live-effect" && (typeof event.l3EventId !== "string" || typeof event.approvalEventId !== "string")) valid = false;
+    if (event.type === "post-effect-smoke" && (typeof event.effectEventId !== "string" || typeof event.passed !== "boolean")) valid = false;
+    if (event.type === "finishing" && typeof event.reusedL3EventId !== "string") valid = false;
     previousSequence = event.sequence;
     byId.set(event.id, event);
   }
   return { valid, events, byId };
 }
 
+function uniqueNonemptyIds(items) {
+  if (items.length === 0) return false;
+  const ids = items.map((item) => item?.id);
+  return ids.every((id) => typeof id === "string" && id.length > 0) && new Set(ids).size === ids.length;
+}
+
 function dependenciesSatisfied(profileResult) {
   const waves = array(profileResult?.waves);
-  if (waves.length === 0) return false;
+  if (!uniqueNonemptyIds(waves)) return false;
+  const completedTaskIds = array(profileResult?.completedTaskIds);
+  if (!uniqueNonemptyIds(completedTaskIds.map((id) => ({ id })))) return false;
   const earlierTasks = new Set();
-  const completedTasks = new Set(array(profileResult?.completedTaskIds));
+  const allTaskIds = new Set();
+  const completedTasks = new Set(completedTaskIds);
   for (const wave of waves) {
     const waveTasks = array(wave?.tasks);
-    const waveIds = new Set(waveTasks.map((task) => task?.id));
+    if (!uniqueNonemptyIds(waveTasks)) return false;
+    const waveIds = new Set(waveTasks.map((task) => task.id));
     for (const task of waveTasks) {
-      if (typeof task?.id !== "string") return false;
-      for (const dependency of array(task.dependsOn)) {
+      if (allTaskIds.has(task.id) || !Array.isArray(task.owns) || task.owns.length === 0 || !Array.isArray(task.mutableResources)) return false;
+      const dependencies = array(task.dependsOn);
+      if (!Array.isArray(task.dependsOn) || dependencies.some((id) => typeof id !== "string") || new Set(dependencies).size !== dependencies.length) return false;
+      allTaskIds.add(task.id);
+      for (const dependency of dependencies) {
         if (waveIds.has(dependency) || !earlierTasks.has(dependency) || !completedTasks.has(dependency)) return false;
       }
     }
     for (const taskId of waveIds) earlierTasks.add(taskId);
   }
+  return completedTasks.size === allTaskIds.size && [...completedTasks].every((taskId) => allTaskIds.has(taskId));
+}
+
+function graphTopologyValid(profileResult, timeline) {
+  const waves = array(profileResult?.waves);
+  if (profileResult?.executionShape !== "graph-waves" || !uniqueNonemptyIds(waves) || array(profileResult?.serialTasks).length !== 0) return false;
+  if (!dependenciesSatisfied(profileResult)) return false;
+  const eventType = (type) => timeline.events.filter((event) => event.type === type);
+  const knownWaveIds = new Set(waves.map((wave) => wave.id));
+  const knownTaskIds = new Set(waves.flatMap((wave) => array(wave.tasks).map((task) => task.id)));
+  let priorWaveL2Sequence = 0;
+
+  for (const wave of waves) {
+    const tasks = array(wave.tasks);
+    const l0 = eventType("l0").filter((event) => event.waveId === wave.id);
+    const fanout = eventType("fanout").filter((event) => event.waveId === wave.id);
+    const l2 = eventType("l2").filter((event) => event.waveId === wave.id);
+    const taskL1 = tasks.map((task) => eventType("l1").filter((event) => event.waveId === wave.id && event.taskId === task.id));
+    if (l0.length !== 1 || l0[0].passed !== true || fanout.length !== 1 || l2.length !== 1 || l2[0].passed !== true) return false;
+    if (taskL1.some((events) => events.length !== 1 || events[0].passed !== true)) return false;
+    const l1Events = taskL1.flat();
+    if (!(priorWaveL2Sequence < l0[0].sequence && l0[0].sequence < fanout[0].sequence)) return false;
+    if (l1Events.some((event) => !(fanout[0].sequence < event.sequence && event.sequence < l2[0].sequence))) return false;
+    priorWaveL2Sequence = l2[0].sequence;
+  }
+
+  if (eventType("fanout").some((event) => !knownWaveIds.has(event.waveId))) return false;
+  if (eventType("l1").some((event) => !knownWaveIds.has(event.waveId) || !knownTaskIds.has(event.taskId))) return false;
+  if (eventType("l0").some((event) => !knownWaveIds.has(event.waveId))) return false;
+  if (eventType("l2").some((event) => event.waveId !== undefined && !knownWaveIds.has(event.waveId))) return false;
   return true;
+}
+
+function serialTopologyValid(profileResult, timeline) {
+  const tasks = array(profileResult?.serialTasks);
+  if (profileResult?.executionShape !== "single-chain-inline" || array(profileResult?.waves).length !== 0 || !uniqueNonemptyIds(tasks)) return false;
+  if (tasks.some((task) => !Array.isArray(task.owns) || task.owns.length === 0 || !Array.isArray(task.mutableResources) || !Array.isArray(task.dependsOn))) return false;
+  const l0Events = timeline.events.filter((event) => event.type === "l0");
+  const l1Events = timeline.events.filter((event) => event.type === "l1");
+  const l2Events = timeline.events.filter((event) => event.type === "l2");
+  if (timeline.events.some((event) => event.type === "fanout") || l0Events.length !== tasks.length || l1Events.length !== tasks.length || l2Events.length !== 1) return false;
+  let previousL1Sequence = 0;
+  for (const [index, task] of tasks.entries()) {
+    const dependencies = task.dependsOn;
+    const expectedDependencies = index === 0 ? [] : [tasks[index - 1].id];
+    if (!sameMembers(dependencies, expectedDependencies)) return false;
+    const l0 = l0Events.filter((event) => event.frontierId === task.id && event.waveId === undefined);
+    const l1 = l1Events.filter((event) => event.taskId === task.id && event.waveId === undefined);
+    if (l0.length !== 1 || l1.length !== 1 || l0[0].passed !== true || l1[0].passed !== true) return false;
+    if (!(previousL1Sequence < l0[0].sequence && l0[0].sequence < l1[0].sequence)) return false;
+    previousL1Sequence = l1[0].sequence;
+  }
+  const boundaryL2 = l2Events[0];
+  return typeof boundaryL2.boundaryId === "string" && boundaryL2.passed === true && previousL1Sequence < boundaryL2.sequence;
+}
+
+function passingL2BeforeFinalization(timeline) {
+  const starts = timeline.events.filter((event) => event.type === "finalization-start");
+  if (starts.length !== 1) return false;
+  const l2 = timeline.byId.get(starts[0].l2EventId);
+  return l2?.type === "l2" && l2.passed === true && l2.sequence < starts[0].sequence;
 }
 
 function assertionFailures(assertions, profileResult) {
@@ -324,17 +451,29 @@ function assertionFailures(assertions, profileResult) {
   const eventsOfType = (type) => timeline.events.filter((event) => event?.type === type);
   const l3Events = eventsOfType("l3");
   const finalizationStarts = eventsOfType("finalization-start");
-  const finalization = profileResult?.finalization;
+  const finalizationStart = finalizationStarts[0];
 
   if (!timeline.valid) failures.push("ordered execution event model is invalid");
+  if (profileResult?.executionShape === "graph-waves") {
+    if (!graphTopologyValid(profileResult, timeline)) {
+      failures.push("graph wave topology is invalid: require unique IDs and L0 < fanout < every L1 < passing L2 in wave order");
+    }
+  } else if (profileResult?.executionShape === "single-chain-inline") {
+    if (!serialTopologyValid(profileResult, timeline)) {
+      failures.push("single dependency chain topology is invalid: require declared-order L0 < L1 and passing integration-boundary L2");
+    }
+  } else if (profileResult?.executionShape === "not-applicable") {
+    if (array(profileResult?.waves).length !== 0 || array(profileResult?.serialTasks).length !== 0) {
+      failures.push("not-applicable execution shape cannot carry graph or serial tasks");
+    }
+  } else {
+    failures.push("execution shape must be graph-waves, single-chain-inline, or not-applicable");
+  }
 
   for (const assertion of assertions) {
     if (assertion === "no-pre-finalization-l3") {
       const finalizationStart = finalizationStarts[0];
-      if (
-        profileResult?.fullSuiteCallsBeforeFinalization !== 0 ||
-        l3Events.some((event) => !finalizationStart || event.sequence <= finalizationStart.sequence)
-      ) {
+      if (l3Events.some((event) => !finalizationStart || event.sequence <= finalizationStart.sequence)) {
         failures.push("repository-wide L3 occurred before finalization");
       }
     }
@@ -346,8 +485,16 @@ function assertionFailures(assertions, profileResult) {
       failures.push("same-wave dependencies are present or dependencies are unsatisfied");
     }
     if (assertion === "reviewed-contract-before-fanout") {
-      const contract = profileResult?.sharedContract;
-      if (contract?.stable !== true || contract?.reviewed !== true || contract?.pinned !== true || contract?.fanoutStarted !== true) {
+      const reviews = eventsOfType("contract-reviewed");
+      const fanouts = eventsOfType("fanout");
+      if (
+        reviews.length !== 1 ||
+        reviews[0].stable !== true ||
+        reviews[0].reviewed !== true ||
+        reviews[0].pinned !== true ||
+        fanouts.length === 0 ||
+        fanouts.some((event) => reviews[0].sequence >= event.sequence)
+      ) {
         failures.push("shared contract was not stable, reviewed, and pinned before fanout");
       }
     }
@@ -369,10 +516,12 @@ function assertionFailures(assertions, profileResult) {
       }
     }
     if (assertion === "scoped-intermediate-claims") {
-      const claims = array(profileResult?.intermediateClaims);
-      if (claims.length === 0 || claims.some((claim) => !SCOPED_CLAIMS.has(claim))) {
-        failures.push("scoped intermediate claims were not limited to task-local or affected closure");
-      }
+      const claims = eventsOfType("claim");
+      const validClaims = claims.length > 0 && claims.every((claim) => {
+        const l2 = timeline.byId.get(claim.l2EventId);
+        return SCOPED_CLAIMS.has(claim.scope) && l2?.type === "l2" && l2.passed === true && l2.sequence < claim.sequence;
+      });
+      if (!validClaims) failures.push("scoped intermediate claims require a referenced prior passing L2 event");
     }
     if (assertion === "focused-command-resolution" && !FOCUSED_ACTIONS.has(profileResult?.missingFocusedCommandAction)) {
       failures.push("missing focused command did not trigger redesign, a focused harness, or final-integration deferral");
@@ -382,46 +531,22 @@ function assertionFailures(assertions, profileResult) {
         failures.push("setup was not plan-declared dependency-only, skipped, or deferred");
       }
     }
-    if (assertion === "l0-frontier-before-work") {
-      const validFrontiers = array(profileResult?.waves).length > 0 && array(profileResult.waves).every((wave) => {
-        const l0 = eventsOfType("l0").filter((event) => event?.waveId === wave?.id);
-        const fanout = eventsOfType("fanout").filter((event) => event?.waveId === wave?.id);
-        const taskL1 = array(wave?.tasks).map((task) =>
-          eventsOfType("l1").find((event) => event?.waveId === wave?.id && event?.taskId === task?.id),
-        );
-        return (
-          l0.length === 1 &&
-          l0[0].passed === true &&
-          fanout.length <= 1 &&
-          (fanout.length === 0 || l0[0].sequence < fanout[0].sequence) &&
-          taskL1.every((event) => event?.passed === true && l0[0].sequence < event.sequence)
-        );
-      });
-      if (!validFrontiers) failures.push("L0 frontier did not pass before fanout and L1");
+    if (assertion === "l0-frontier-before-work" && !graphTopologyValid(profileResult, timeline)) {
+      failures.push("L0 frontier did not pass before exactly one fanout, every L1, and passing L2");
     }
-    if (assertion === "graphless-single-chain-inline") {
-      const serialTasks = array(profileResult?.serialTasks);
-      const validSerial =
-        profileResult?.executionShape === "single-chain-inline" &&
-        array(profileResult?.waves).length === 0 &&
-        serialTasks.length > 0 &&
-        eventsOfType("fanout").length === 0 &&
-        serialTasks.every((task) => {
-          const l0 = eventsOfType("l0").find((event) => event?.frontierId === task?.id);
-          const l1 = eventsOfType("l1").find((event) => event?.taskId === task?.id);
-          return l0?.passed === true && l1?.passed === true && l0.sequence < l1.sequence;
-        });
-      if (!validSerial) failures.push("single dependency chain did not remain graphless and inline");
+    if (assertion === "graphless-single-chain-inline" && !serialTopologyValid(profileResult, timeline)) {
+      failures.push("single dependency chain did not remain graphless in declared order through passing L2");
     }
     if (assertion === "finalization-conjunction") {
+      const completions = eventsOfType("completion");
       if (
-        finalization?.began !== true ||
-        finalization?.allWavesIntegrated !== true ||
-        finalization?.l2Passed !== true ||
-        finalization?.noImplementationTasks !== true ||
-        finalization?.noBlockingReviewFindings !== true ||
-        finalization?.completed !== true ||
-        finalizationStarts.length !== 1
+        finalizationStarts.length !== 1 ||
+        finalizationStart?.allWavesIntegrated !== true ||
+        finalizationStart?.noImplementationTasks !== true ||
+        finalizationStart?.noBlockingReviewFindings !== true ||
+        !passingL2BeforeFinalization(timeline) ||
+        completions.length !== 1 ||
+        completions[0].sequence <= finalizationStart.sequence
       ) {
         failures.push("finalization preconditions were incomplete");
       }
@@ -431,15 +556,19 @@ function assertionFailures(assertions, profileResult) {
       const validCompletion = completions.length > 0 && completions.every((completion) => {
         const l3 = timeline.byId.get(completion?.l3EventId);
         const finalizationStart = finalizationStarts[0];
+        const latestPriorL3 = l3Events.filter((event) => event.sequence < completion.sequence).at(-1);
         return (
           l3?.type === "l3" &&
           l3.passed === true &&
+          latestPriorL3?.id === l3.id &&
           finalizationStart &&
           finalizationStart.sequence < l3.sequence &&
           l3.sequence < completion.sequence
         );
       });
-      if (!validCompletion) failures.push("final completion did not follow a passing finalization L3");
+      if (completions.length !== 1 || !passingL2BeforeFinalization(timeline) || !validCompletion) {
+        failures.push("final completion did not follow passing L2 and the latest passing finalization L3");
+      }
     }
     if (assertion === "same-state-no-duplicate-l3") {
       const finishing = eventsOfType("finishing");
@@ -453,6 +582,7 @@ function assertionFailures(assertions, profileResult) {
         reused?.type !== "l3" ||
         reused.passed !== true ||
         reused.sequence >= finishing[0].sequence ||
+        !passingL2BeforeFinalization(timeline) ||
         !sameStateFingerprint(reused.state, finishing[0].state) ||
         interveningCause
       ) {
@@ -460,35 +590,51 @@ function assertionFailures(assertions, profileResult) {
       }
     }
     if (assertion === "material-cause-before-later-l3") {
-      const validLaterRuns = l3Events.length >= 2 && l3Events.slice(1).every((later) => {
+      const usedCauseIds = new Set();
+      const validLaterRuns = passingL2BeforeFinalization(timeline) && l3Events.length >= 2 && l3Events.slice(1).every((later, index) => {
         const cause = timeline.byId.get(later?.materialCauseEventId);
-        const previous = timeline.byId.get(cause?.invalidatesL3EventId);
-        return (
-          cause?.type === "material-cause" &&
-          previous?.type === "l3" &&
-          previous.passed === true &&
-          previous.sequence < cause.sequence &&
-          cause.sequence < later.sequence
+        const previous = l3Events[index];
+        const focusedL2 = eventsOfType("l2").filter(
+          (event) => cause && cause.sequence < event.sequence && event.sequence < later.sequence,
         );
+        const valid = (
+          cause?.type === "material-cause" &&
+          !usedCauseIds.has(cause.id) &&
+          cause.invalidatesL3EventId === previous?.id &&
+          previous?.passed === true &&
+          previous.sequence < cause.sequence &&
+          focusedL2.length > 0 &&
+          focusedL2.every((event) => event.passed === true) &&
+          cause.sequence < later.sequence &&
+          !sameStateFingerprint(previous.state, later.state)
+        );
+        if (cause?.id) usedCauseIds.add(cause.id);
+        return valid;
       });
-      if (!validLaterRuns) failures.push("later L3 did not reference an intervening material cause");
+      if (!validLaterRuns) failures.push("later L3 requires an unreused material cause after the immediate prior L3, passing fix L2, and a changed state fingerprint");
     }
     if (assertion === "live-effect-ordering") {
       const effects = eventsOfType("live-effect");
-      const validEffects = effects.length > 0 && effects.every((effect) => {
+      const completions = eventsOfType("completion");
+      const validEffects = effects.length === 1 && completions.length === 1 && passingL2BeforeFinalization(timeline) && effects.every((effect) => {
         const l3 = timeline.byId.get(effect?.l3EventId);
         const approval = timeline.byId.get(effect?.approvalEventId);
         const smoke = eventsOfType("post-effect-smoke").find((event) => event?.effectEventId === effect.id);
+        const completion = completions[0];
+        const latestPriorL3 = l3Events.filter((event) => event.sequence < approval?.sequence).at(-1);
         return (
           l3?.type === "l3" &&
           l3.passed === true &&
+          latestPriorL3?.id === l3.id &&
           approval?.type === "approval" &&
           approval.approved === true &&
           approval.l3EventId === l3.id &&
+          completion.l3EventId === l3.id &&
           l3.sequence < approval.sequence &&
           approval.sequence < effect.sequence &&
           smoke?.passed === true &&
-          effect.sequence < smoke.sequence
+          effect.sequence < smoke.sequence &&
+          smoke.sequence < completion.sequence
         );
       });
       if (!validEffects) {
@@ -509,6 +655,9 @@ function validateProfileResult({ fixture, target, repetition, profile, profileRe
   if (typeof profileResult.pass !== "boolean") {
     addError(errors, `${prefix} pass must be boolean`);
     return;
+  }
+  for (const field of LEGACY_PROFILE_FIELDS) {
+    if (Object.hasOwn(profileResult, field)) addError(errors, `${prefix} legacy evidence field ${field} is forbidden; use events only`);
   }
   if (!orderedEvents(profileResult).valid) {
     addError(errors, `${prefix} events must be a non-empty, uniquely identified, strictly ordered supported event sequence with valid L3/finishing state fingerprints`);
@@ -554,29 +703,39 @@ export function parsePiJsonlResponse(rawResponse) {
     return { valid: false, errors, events, text: "" };
   }
 
-  const finalEndIndex = events.length - 2;
-  const finalEnd = events[finalEndIndex];
-  if (finalEnd?.type !== "agent_end") {
+  const lifecycles = [];
+  let activeStartIndex = -1;
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index];
+    if (event.type === "agent_settled" && index !== events.length - 1) {
+      addError(errors, "agent_settled is allowed only as the final event");
+    }
+    if (event.type === "agent_start") {
+      if (activeStartIndex >= 0) addError(errors, "agent lifecycle contains an unmatched agent_start");
+      else activeStartIndex = index;
+    }
+    if (event.type === "agent_end") {
+      if (activeStartIndex < 0) {
+        addError(errors, "agent lifecycle contains an unmatched agent_end; balanced lifecycle required");
+      } else {
+        lifecycles.push({ startIndex: activeStartIndex, endIndex: index, end: event });
+        activeStartIndex = -1;
+      }
+    }
+  }
+  if (activeStartIndex >= 0) addError(errors, "final agent_start has no matching final agent_end");
+  if (lifecycles.length === 0) addError(errors, "final agent_end has no matching final agent_start");
+  if (errors.length > 0) return { valid: false, errors, events, text: "" };
+
+  const finalLifecycle = lifecycles.at(-1);
+  const finalStartIndex = finalLifecycle.startIndex;
+  const finalEndIndex = finalLifecycle.endIndex;
+  const finalEnd = finalLifecycle.end;
+  if (finalEndIndex !== events.length - 2) {
     addError(errors, "final agent_settled must immediately follow the final agent_end");
-    return { valid: false, errors, events, text: "" };
   }
-  let finalStartIndex = -1;
-  for (let index = finalEndIndex - 1; index >= 0; index -= 1) {
-    if (events[index]?.type === "agent_start") {
-      finalStartIndex = index;
-      break;
-    }
-  }
-  if (finalStartIndex < 0) {
-    addError(errors, "final agent_end has no matching final agent_start");
-    return { valid: false, errors, events, text: "" };
-  }
-  for (let index = finalStartIndex - 1; index >= 0; index -= 1) {
-    if (events[index]?.type === "agent_end") break;
-    if (events[index]?.type === "agent_start") {
-      addError(errors, "final lifecycle contains an unmatched agent_start");
-      break;
-    }
+  for (const lifecycle of lifecycles.slice(0, -1)) {
+    if (lifecycle.end.willRetry !== true) addError(errors, "every non-final agent_end willRetry must be true");
   }
   if (finalEnd.willRetry !== false) addError(errors, "final agent_end willRetry must be false");
 

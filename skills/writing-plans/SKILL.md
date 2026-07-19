@@ -22,6 +22,7 @@ Every task states:
 ```text
 Purpose and observable outcome
 Files/modules and ownership boundary
+Exact mutable-resource ownership
 Interfaces and cross-task dependencies
 Constraints and invariants
 Acceptance evidence
@@ -48,10 +49,10 @@ Before tasks, record:
 For qualifying work, include one table with every field:
 
 ```text
-task | wave | dependsOn | owns | produces | consumes | risk | L1 | L2
+task | wave | dependsOn | owns | mutableResources | produces | consumes | risk | L1 | L2
 ```
 
-Same-wave tasks must have no dependency path between them, disjoint `owns` paths, and isolated mutable resources. Put a shared contract-spine task in an earlier wave and pin its reviewed contract before consumers fan out. Assign one canonical integrator; isolated writers return patches, and the plan names patch ownership.
+Same-wave tasks must have no dependency path between them, disjoint `owns` paths, and disjoint `mutableResources` identities. List exact databases, ports, caches, services, temp roots, and other process-global resources; `none` is explicit. Do not hide resource allocation in implementation prose. Put a shared contract-spine task in an earlier wave and pin its reviewed contract before consumers fan out. Assign one canonical integrator; isolated writers return patches, and the plan names patch ownership.
 
 For each wave, derive L2 from the affected closure. Name reverse consumers, shared build/configuration surfaces, exact commands and filters, and an exclusion rationale for omitted surfaces. If no trustworthy focused command exists, redesign the unit or boundary, add a focused harness, or defer that unit to final integration. Never relabel a repository-wide suite as L2.
 
@@ -84,6 +85,9 @@ For each wave, derive L2 from the affected closure. Name reverse consumers, shar
 **Interfaces and cross-task dependencies:**
 - Consumes: [stable contract]
 - Produces: [stable contract]
+
+**Mutable resources:**
+- `mutableResources`: [exact database/port/cache/service/temp identity, or `none`]
 
 **Constraints and invariants:**
 - [binding requirement]
@@ -126,7 +130,7 @@ Reject TODO/TBD text, vague validation, unnamed edge cases, undefined interfaces
 
 ## Self-Review
 
-Check spec coverage, placeholder absence, field/type consistency, graph legality, complete ownership, honest L2 derivation, and finalization-only L3. Fix defects inline before handoff.
+Check spec coverage, placeholder absence, field/type consistency, graph legality, complete path and mutable-resource ownership, honest L2 derivation, and finalization-only L3. Fix defects inline before handoff.
 
 ## Execution Handoff
 

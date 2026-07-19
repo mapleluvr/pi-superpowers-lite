@@ -107,39 +107,65 @@ bases, patches, prompts, settings, raw hashes, attempts, or identity fields fail
 validation.
 
 Raw Pi output is JSONL, not one JSON value. The shared parser reads every nonblank
-line as a JSON object and accepts only when the last event is `agent_settled`, the
-immediately preceding final `agent_end` has `willRetry: false`, and that end matches
-the final `agent_start` lifecycle. The terminal `message_end` in that lifecycle
-must be an assistant message with `stopReason: "stop"`, no error or tool content,
-and nonempty concatenated text blocks. Earlier retry lifecycles never satisfy a
-failed final lifecycle. Collectors must import the same parser used by the report
-validator.
+line as a JSON object and validates every agent lifecycle as a balanced state
+machine. Each non-final lifecycle is exactly one `agent_start` plus one
+`agent_end` with `willRetry: true`; the final lifecycle ends with exactly one
+`agent_end` with `willRetry: false`, immediately followed by the sole final
+`agent_settled`. Duplicate, nested, or unpaired starts/ends fail. The terminal
+`message_end` in the final lifecycle must be an assistant message with
+`stopReason: "stop"`, no error or tool content, and nonempty concatenated text
+blocks. Earlier retry lifecycles never satisfy a failed final lifecycle.
+Collectors must import the same parser used by the report validator.
 
-Profile observations record a strictly ordered, uniquely identified `events`
-array. Supported events cover L0, fanout, L1/L2, finalization start, L3, material
-cause, approval, completion, live effect, post-effect smoke, and finishing. Every
-L3 and finishing event carries clean HEAD/tree, exact command-set hash, and
-non-secret environment-fingerprint hash. Assertions resolve references and prove
-ordering rather than trusting `after...` booleans.
+Profile observations use one authoritative, strictly ordered, uniquely identified
+`events` array. Legacy `finalization`, `fullSuiteCallsBeforeFinalization`,
+`intermediateClaims`, `sharedContract`, `l3Events`, `materialCauseEvents`,
+`completionClaimed`, `completionAfterL3EventId`, `finalApproval`, `liveEffects`,
+and `finishingEvidenceReused` fields are forbidden. Supported events cover
+contract review, claims, L0, fanout, L1/L2, finalization start, L3, material
+cause, approval, completion, live effect, post-effect smoke, and finishing. Every L3 and finishing event carries
+clean HEAD/tree, exact command-set hash, and non-secret environment-fingerprint
+hash.
+
+A graph wave has unique wave/task IDs and exactly this order per wave:
+`passing L0 < exactly one fanout < exactly one passing L1 per task < passing
+union L2`; a prior wave's L2 precedes the next wave's L0. A high-risk contract
+review event must be stable, reviewed, and pinned before fanout. An intermediate
+claim names its prior passing L2 event and uses only a scoped L1/L2 claim. A graphless serial
+chain has unique tasks in declared order, no fanout, one passing L0/L1 pair per
+task, then a passing integration-boundary L2. A `finalization-start` event names
+that passing L2 and carries all-waves-integrated, no-implementation-tasks, and
+no-blocking-findings preconditions. Material reruns name an unreused cause after
+the immediate prior L3, include passing fix L2, and change the state fingerprint.
+Live effects require `L3 < approval < effect < post-effect smoke < completion`.
 
 Wave tasks use normalized `owns` and `mutableResources`. Ownership accepts exact
 repository-relative paths or a terminal `/**` bounded subtree only; absolute
 paths, parent traversal, and other glob syntax are invalid. Same-wave bounded
-subtrees must not intersect, and mutable-resource identities such as databases,
-ports, caches, or services must be unique across tasks. A graphless serial chain
-uses `serialTasks` and no fanout event.
+subtrees must not intersect, and exact mutable-resource identities such as
+ports, databases, caches, services, or temp roots must be unique across tasks.
+Use an explicit empty list when a task owns none.
 
 Normalize only behavior present in the raw response. Preserve generated prompts
 and raw Pi JSON separately under the ignored controller evidence root. Never
 manufacture an absent observation.
 
+## Baseline RED Amendment
+
+The 2026-07-20 Total Re-review correction makes RED sufficiency explicit. Run
+and manually inspect every mapped case/profile cell, but require at least one
+genuine RED across the mapped cases for each changed skill profile, not a
+fabricated failure in every cell. Mapped cells where upstream is already green
+are regression controls and Lite must keep them green. A profile with no RED
+blocks or remaps that skill change. Missing or falsely normalized observations
+still fail the gate.
+
 ## Cardinality and Modes
 
 Run ten fixtures, two targets, and repetitions 1 through 5 for a complete
 100-record report. A complete baseline has exactly 50 records. Baseline profile
-results may and usually should fail Lite assertions, but every mapped baseline
-profile must contain at least one genuine RED observation. Every requested Lite
-profile result must pass its fixture assertion conjunction.
+results may and usually should fail Lite assertions under the amendment above.
+Every requested Lite profile result must pass its fixture assertion conjunction.
 
 The validator accepts exactly three selection modes:
 

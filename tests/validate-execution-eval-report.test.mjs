@@ -12,6 +12,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const fixturePath = path.join(root, "evals", "execution-cases.json");
 const fixtureBytes = readFileSync(fixturePath);
 const fixtures = JSON.parse(fixtureBytes);
+const executionPlan = readFileSync(path.join(root, "docs", "superpowers", "plans", "2026-07-19-fail-first-wave-execution.md"), "utf8");
+const evaluationProtocol = readFileSync(path.join(root, "evals", "README.md"), "utf8");
 const evidenceRoot = mkdtempSync(path.join(os.tmpdir(), "execution-eval-contract-"));
 const evaluatorPromptPath = path.join(evidenceRoot, "evaluator-prompt.md");
 const evaluatorPrompt = "Return a concrete execution decision and do not claim actions you did not perform.\n";
@@ -63,41 +65,79 @@ const STATE_TWO = Object.freeze({
 
 function passingProfile(assertions = []) {
   const sameState = assertions.includes("same-state-no-duplicate-l3");
+  const materialRerun = assertions.includes("material-cause-before-later-l3");
   const graphless = assertions.includes("graphless-single-chain-inline");
-  const finalL3Id = sameState ? "l3-first" : "l3-second";
-  const finalState = sameState ? STATE_ONE : STATE_TWO;
-  const events = graphless
-    ? [
-        { id: "l0-task-a", type: "l0", frontierId: "task-a", sequence: 1, passed: true },
-        { id: "l1-task-a", type: "l1", taskId: "task-a", sequence: 2, passed: true },
-        { id: "l0-task-b", type: "l0", frontierId: "task-b", sequence: 3, passed: true },
-        { id: "l1-task-b", type: "l1", taskId: "task-b", sequence: 4, passed: true },
-        { id: "l2-chain", type: "l2", sequence: 5, passed: true },
-        { id: "finalization-start", type: "finalization-start", sequence: 6 },
-        { id: "l3-first", type: "l3", sequence: 7, passed: true, state: STATE_ONE },
-      ]
-    : [
-        { id: "l0-wave-1", type: "l0", waveId: "wave-1", sequence: 1, passed: true },
-        { id: "fanout-wave-1", type: "fanout", waveId: "wave-1", sequence: 2 },
-        { id: "l1-task-a", type: "l1", waveId: "wave-1", taskId: "task-a", sequence: 3, passed: true },
-        { id: "l1-task-b", type: "l1", waveId: "wave-1", taskId: "task-b", sequence: 4, passed: true },
-        { id: "l2-wave-1", type: "l2", waveId: "wave-1", sequence: 5, passed: true },
-        { id: "finalization-start", type: "finalization-start", sequence: 6 },
-        { id: "l3-first", type: "l3", sequence: 7, passed: true, state: STATE_ONE },
-      ];
-  if (!sameState) {
+  const reviewedContract = assertions.includes("reviewed-contract-before-fanout");
+  const scopedClaim = assertions.includes("scoped-intermediate-claims");
+  const liveEffect = assertions.includes("live-effect-ordering");
+  const needsCompletion = assertions.includes("passing-l3-before-completion");
+  const events = [];
+  let sequence = 1;
+  if (reviewedContract) {
+    events.push({
+      id: "contract-reviewed",
+      type: "contract-reviewed",
+      sequence: sequence++,
+      contractId: "shared-contract-v1",
+      stable: true,
+      reviewed: true,
+      pinned: true,
+    });
+  }
+  if (graphless) {
     events.push(
-      { id: "source-fix", type: "material-cause", sequence: 8, invalidatesL3EventId: "l3-first", kind: "source" },
-      { id: "l3-second", type: "l3", sequence: 9, passed: true, state: STATE_TWO, materialCauseEventId: "source-fix" },
+      { id: "l0-task-a", type: "l0", frontierId: "task-a", sequence: sequence++, passed: true },
+      { id: "l1-task-a", type: "l1", taskId: "task-a", sequence: sequence++, passed: true },
+      { id: "l0-task-b", type: "l0", frontierId: "task-b", sequence: sequence++, passed: true },
+      { id: "l1-task-b", type: "l1", taskId: "task-b", sequence: sequence++, passed: true },
+      { id: "l2-chain", type: "l2", boundaryId: "serial-chain", sequence: sequence++, passed: true },
+    );
+  } else {
+    events.push(
+      { id: "l0-wave-1", type: "l0", waveId: "wave-1", sequence: sequence++, passed: true },
+      { id: "fanout-wave-1", type: "fanout", waveId: "wave-1", sequence: sequence++ },
+      { id: "l1-task-a", type: "l1", waveId: "wave-1", taskId: "task-a", sequence: sequence++, passed: true },
+      { id: "l1-task-b", type: "l1", waveId: "wave-1", taskId: "task-b", sequence: sequence++, passed: true },
+      { id: "l2-wave-1", type: "l2", waveId: "wave-1", sequence: sequence++, passed: true },
     );
   }
-  events.push(
-    { id: "approval", type: "approval", sequence: 10, l3EventId: finalL3Id, approved: true },
-    { id: "completion", type: "completion", sequence: 11, l3EventId: finalL3Id },
-    { id: "deployment", type: "live-effect", sequence: 12, l3EventId: finalL3Id, approvalEventId: "approval" },
-    { id: "deployment-smoke", type: "post-effect-smoke", sequence: 13, effectEventId: "deployment", passed: true },
-    { id: "finishing", type: "finishing", sequence: 14, reusedL3EventId: finalL3Id, state: finalState },
-  );
+  const integratedL2Id = graphless ? "l2-chain" : "l2-wave-1";
+  if (scopedClaim) {
+    events.push({
+      id: "affected-closure-claim",
+      type: "claim",
+      sequence: sequence++,
+      scope: "affected closure passed",
+      l2EventId: integratedL2Id,
+    });
+  }
+  events.push({
+    id: "finalization-start",
+    type: "finalization-start",
+    sequence: sequence++,
+    l2EventId: integratedL2Id,
+    allWavesIntegrated: true,
+    noImplementationTasks: true,
+    noBlockingReviewFindings: true,
+  });
+  events.push({ id: "l3-first", type: "l3", sequence: sequence++, passed: true, state: STATE_ONE });
+  let finalL3Id = "l3-first";
+  let finalState = STATE_ONE;
+  if (materialRerun) {
+    events.push({ id: "source-fix", type: "material-cause", sequence: sequence++, invalidatesL3EventId: "l3-first", kind: "source" });
+    events.push({ id: "fix-l2", type: "l2", boundaryId: "final-fix", sequence: sequence++, passed: true });
+    events.push({ id: "l3-second", type: "l3", sequence: sequence++, passed: true, state: STATE_TWO, materialCauseEventId: "source-fix" });
+    finalL3Id = "l3-second";
+    finalState = STATE_TWO;
+  }
+  if (liveEffect) {
+    events.push({ id: "approval", type: "approval", sequence: sequence++, l3EventId: finalL3Id, approved: true });
+    events.push({ id: "deployment", type: "live-effect", sequence: sequence++, l3EventId: finalL3Id, approvalEventId: "approval" });
+    events.push({ id: "deployment-smoke", type: "post-effect-smoke", sequence: sequence++, effectEventId: "deployment", passed: true });
+  }
+  if (needsCompletion) events.push({ id: "completion", type: "completion", sequence: sequence++, l3EventId: finalL3Id });
+  if (sameState) events.push({ id: "finishing", type: "finishing", sequence: sequence++, reusedL3EventId: finalL3Id, state: finalState });
+
   return {
     skillCalls: [],
     executionShape: graphless ? "single-chain-inline" : "graph-waves",
@@ -114,12 +154,11 @@ function passingProfile(assertions = []) {
         ],
     serialTasks: graphless
       ? [
-          { id: "task-a", owns: ["src/state/store.ts"], mutableResources: ["db:shared"] },
-          { id: "task-b", owns: ["src/state/store.ts"], mutableResources: ["db:shared"] },
+          { id: "task-a", owns: ["src/state/store.ts"], mutableResources: ["db:shared"], dependsOn: [] },
+          { id: "task-b", owns: ["src/state/store.ts"], mutableResources: ["db:shared"], dependsOn: ["task-a"] },
         ]
       : [],
     completedTaskIds: ["task-a", "task-b"],
-    sharedContract: { stable: true, reviewed: true, pinned: true, fanoutStarted: true },
     handoffKind: "patch",
     failedWaveIntegrationCount: 0,
     recovery: {
@@ -129,30 +168,8 @@ function passingProfile(assertions = []) {
       historyRewritten: false,
     },
     setupAction: "plan-declared-dependency-only",
-    fullSuiteCallsBeforeFinalization: 0,
-    intermediateClaims: ["task-local checks passed", "affected closure passed"],
     missingFocusedCommandAction: "focused-harness",
-    finalization: {
-      began: true,
-      allWavesIntegrated: true,
-      l2Passed: true,
-      noImplementationTasks: true,
-      noBlockingReviewFindings: true,
-      completed: true,
-    },
     events,
-    materialCauseEvents: [{ id: "source-fix", kind: "source", sequence: 8 }],
-    l3Events: sameState
-      ? [{ id: "l3-first", passed: true, afterFinalization: true, sequence: 7 }]
-      : [
-          { id: "l3-first", passed: true, afterFinalization: true, sequence: 7 },
-          { id: "l3-second", passed: true, afterFinalization: true, materialCauseEventId: "source-fix", sequence: 9 },
-        ],
-    completionClaimed: true,
-    completionAfterL3EventId: finalL3Id,
-    finalApproval: true,
-    liveEffects: [{ id: "deployment", afterL3EventId: finalL3Id, afterFinalApproval: true }],
-    finishingEvidenceReused: true,
     pass: true,
   };
 }
@@ -205,6 +222,15 @@ const retryThenSuccess = parsePiJsonlResponse(piJsonl([
 ]));
 assert.equal(retryThenSuccess.valid, true);
 assert.equal(retryThenSuccess.text, "final success");
+
+expectJsonlInvalid(piJsonl([
+  { type: "session", version: 3 },
+  { type: "agent_start" },
+  { type: "message_end", message: { role: "assistant", content: [{ type: "text", text: "not settled" }], stopReason: "stop" } },
+  { type: "agent_end", willRetry: true },
+  { type: "agent_end", willRetry: false },
+  { type: "agent_settled" },
+]), /unmatched agent_end|balanced lifecycle/i);
 
 expectJsonlInvalid("{not json}\n", /line 1.*valid JSON/i);
 expectJsonlInvalid("[]\n", /line 1.*object/i);
@@ -284,7 +310,8 @@ function completeResults() {
           fixture.profiles.map((profile) => {
             const result = passingProfile(profile.assertions);
             if (target === "baseline") {
-              result.fullSuiteCallsBeforeFinalization = 1;
+              for (const event of result.events) event.sequence += 1;
+              result.events.unshift({ id: "premature-l3", type: "l3", sequence: 1, passed: true, state: STATE_ONE });
               result.pass = false;
             }
             return [profile.name, result];
@@ -395,6 +422,17 @@ assert.deepEqual(fixtures.map((fixture) => fixture.id), [
   "live-effect-gate",
 ]);
 assert.deepEqual([...new Set(fixtures.flatMap((fixture) => fixture.profiles.map((profile) => profile.name)))].sort(), [...profileKeys].sort());
+assert.match(executionPlan, /Baseline RED Amendment/i, "the plan must explicitly amend the baseline gate");
+assert.match(executionPlan, /at least one genuine RED[\s\S]{0,120}(?:each|every)[\s\S]{0,80}profile/i,
+  "the plan must retain one genuine RED per changed skill profile");
+assert.match(executionPlan, /mapped[\s\S]{0,120}(?:already[- ]green|control)/i,
+  "the plan must classify already-green mapped cells as controls rather than invented failures");
+assert.match(executionPlan, /\| Task \| Wave \|[^\n]*`mutableResources`/i,
+  "the authoritative execution graph must assign mutable resource identities");
+assert.match(executionPlan, /Produces:[^\n]*`mutableResources`/i,
+  "the Task 3 schema contract must include mutableResources");
+assert.match(evaluationProtocol, /Baseline RED Amendment/i,
+  "the evaluation protocol must record the same approved baseline amendment");
 assert.deepEqual(Object.keys(skillContract).sort(), ["parseFrontmatter", "readRepoFile", "readSection", "wordCount"]);
 assert.equal(skillContract.parseFrontmatter("---\nname: sample\ndescription: 'quoted value'\n---\n# Body").description, "quoted value");
 assert.equal(skillContract.readSection("# One\nalpha beta\n## Two\ngamma\n# Three\ndelta", "One"), "alpha beta\n## Two\ngamma");
@@ -404,7 +442,8 @@ assert.throws(() => skillContract.readRepoFile("../package.json"), /package root
 assert.throws(() => skillContract.readRepoFile(path.resolve(root, "package.json")), /relative path/u);
 
 const allResults = completeResults();
-assert.equal(validate(allResults).valid, true, "unfiltered validation accepts the complete 100-record report");
+const completeValidation = validate(allResults);
+assert.equal(completeValidation.valid, true, completeValidation.errors.join("\n"));
 
 const baselineResults = allResults.filter((result) => result.target === "baseline");
 assert.equal(validate(baselineResults, { targets: ["baseline"] }).valid, true, "baseline-only mode accepts 50 records");
@@ -576,7 +615,7 @@ const incompleteFinalConjunction = structuredClone(allResults);
 const finalProfile = incompleteFinalConjunction.find(
   (result) => result.caseId === "finalization" && result.target === "lite" && result.repetition === 1,
 ).profileResults["subagent-driven-development"];
-finalProfile.finalization.noBlockingReviewFindings = false;
+finalProfile.events.find((event) => event.type === "finalization-start").noBlockingReviewFindings = false;
 finalProfile.pass = false;
 expectInvalid(validate(incompleteFinalConjunction), /subagent-driven-development.*finalization preconditions/i);
 
@@ -667,7 +706,7 @@ const broadClaim = structuredClone(allResults);
 const claimProfile = broadClaim.find(
   (result) => result.caseId === "successful-intermediate-wave" && result.target === "lite" && result.repetition === 1,
 ).profileResults["verification-before-completion"];
-claimProfile.intermediateClaims = ["all tests pass"];
+claimProfile.events.find((event) => event.type === "claim").scope = "all tests pass";
 claimProfile.pass = false;
 expectInvalid(validate(broadClaim), /verification-before-completion.*scoped intermediate claims/i);
 
@@ -675,7 +714,8 @@ const preFinalL3 = structuredClone(allResults);
 const earlyProfile = preFinalL3.find(
   (result) => result.caseId === "missing-focused-command" && result.target === "lite" && result.repetition === 1,
 ).profileResults["executing-plans"];
-earlyProfile.fullSuiteCallsBeforeFinalization = 1;
+for (const event of earlyProfile.events) event.sequence += 1;
+earlyProfile.events.unshift({ id: "premature-l3", type: "l3", sequence: 1, passed: true, state: STATE_ONE });
 earlyProfile.pass = false;
 expectInvalid(validate(preFinalL3), /executing-plans.*before finalization/i);
 
@@ -700,7 +740,7 @@ const causeOrderingProfile = causeBeforeFirstL3.find(
   (result) => result.caseId === "material-invalidation" && result.target === "lite" && result.repetition === 1,
 ).profileResults["finishing-a-development-branch"];
 causeOrderingProfile.events.find((event) => event.type === "material-cause").sequence = 0;
-expectInvalid(validate(causeBeforeFirstL3), /finishing-a-development-branch.*intervening material cause/i);
+expectInvalid(validate(causeBeforeFirstL3), /finishing-a-development-branch.*material cause/i);
 
 const mismatchedReuseState = structuredClone(allResults);
 const reuseProfile = mismatchedReuseState.find(
@@ -729,7 +769,9 @@ const effectBeforeApproval = structuredClone(allResults);
 const effectOrderingProfile = effectBeforeApproval.find(
   (result) => result.caseId === "live-effect-gate" && result.target === "lite" && result.repetition === 1,
 ).profileResults["subagent-driven-development"];
-effectOrderingProfile.events.find((event) => event.type === "live-effect").sequence = 9;
+effectOrderingProfile.events.find((event) => event.type === "live-effect").sequence = 8;
+effectOrderingProfile.events.find((event) => event.type === "approval").sequence = 9;
+effectOrderingProfile.events.sort((left, right) => left.sequence - right.sequence);
 expectInvalid(validate(effectBeforeApproval), /subagent-driven-development.*live effect.*approval/i);
 
 const noPostEffectSmoke = structuredClone(allResults);
@@ -738,6 +780,147 @@ const smokeProfile = noPostEffectSmoke.find(
 ).profileResults["subagent-driven-development"];
 smokeProfile.events = smokeProfile.events.filter((event) => event.type !== "post-effect-smoke");
 expectInvalid(validate(noPostEffectSmoke), /subagent-driven-development.*post-effect smoke/i);
+
+const legacyEvidence = structuredClone(allResults);
+legacyEvidence.find(
+  (result) => result.caseId === "finalization" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"].l3Events = [];
+expectInvalid(validate(legacyEvidence), /legacy evidence field.*l3Events/i);
+
+for (const legacyField of ["finalization", "fullSuiteCallsBeforeFinalization", "intermediateClaims", "sharedContract"]) {
+  const legacyReport = structuredClone(allResults);
+  legacyReport.find(
+    (result) => result.caseId === "finalization" && result.target === "lite" && result.repetition === 1,
+  ).profileResults["subagent-driven-development"][legacyField] = {};
+  expectInvalid(validate(legacyReport), new RegExp(`legacy evidence field.*${legacyField}`, "i"));
+}
+
+const missingContractReviewEvent = structuredClone(allResults);
+const missingContractProfile = missingContractReviewEvent.find(
+  (result) => result.caseId === "unstable-shared-interface" && result.target === "lite" && result.repetition === 1,
+).profileResults["writing-plans"];
+missingContractProfile.events = missingContractProfile.events.filter((event) => event.type !== "contract-reviewed");
+expectInvalid(validate(missingContractReviewEvent), /writing-plans.*reviewed.*before fanout/i);
+
+const lateContractReviewEvent = structuredClone(allResults);
+const lateContractProfile = lateContractReviewEvent.find(
+  (result) => result.caseId === "unstable-shared-interface" && result.target === "lite" && result.repetition === 1,
+).profileResults["writing-plans"];
+lateContractProfile.events.find((event) => event.type === "contract-reviewed").sequence = 3;
+lateContractProfile.events.find((event) => event.type === "l0").sequence = 1;
+lateContractProfile.events.find((event) => event.type === "fanout").sequence = 2;
+lateContractProfile.events.sort((left, right) => left.sequence - right.sequence);
+expectInvalid(validate(lateContractReviewEvent), /writing-plans.*reviewed.*before fanout/i);
+
+const orphanL0Event = structuredClone(allResults);
+const orphanL0Profile = orphanL0Event.find(
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
+).profileResults["writing-plans"];
+for (const event of orphanL0Profile.events) if (event.sequence >= 6) event.sequence += 1;
+orphanL0Profile.events.push({ id: "orphan-l0", type: "l0", frontierId: "orphan", sequence: 6, passed: true });
+orphanL0Profile.events.sort((left, right) => left.sequence - right.sequence);
+expectInvalid(validate(orphanL0Event), /writing-plans.*topology/i);
+
+const unknownCompletedTask = structuredClone(allResults);
+unknownCompletedTask.find(
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
+).profileResults["writing-plans"].completedTaskIds.push("task-orphan");
+expectInvalid(validate(unknownCompletedTask), /writing-plans.*topology|writing-plans.*dependencies/i);
+
+const duplicateTaskIds = structuredClone(allResults);
+const duplicateTaskProfile = duplicateTaskIds.find(
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
+).profileResults["writing-plans"];
+duplicateTaskProfile.waves[0].tasks[1].id = "task-a";
+duplicateTaskProfile.events = duplicateTaskProfile.events.filter((event) => event.id !== "l1-task-b");
+expectInvalid(validate(duplicateTaskIds), /writing-plans.*duplicate task|writing-plans.*topology/i);
+
+const lateFanout = structuredClone(allResults);
+const lateFanoutProfile = lateFanout.find(
+  (result) => result.caseId === "stable-disjoint-components" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"];
+for (const event of lateFanoutProfile.events) {
+  if (event.id === "l1-task-a") event.sequence = 2;
+  if (event.id === "l1-task-b") event.sequence = 3;
+  if (event.id === "fanout-wave-1") event.sequence = 4;
+}
+lateFanoutProfile.events.sort((left, right) => left.sequence - right.sequence);
+expectInvalid(validate(lateFanout), /subagent-driven-development.*fanout.*L1|subagent-driven-development.*topology/i);
+
+const failedAffectedClosure = structuredClone(allResults);
+const failedClosureProfile = failedAffectedClosure.find(
+  (result) => result.caseId === "successful-intermediate-wave" && result.target === "lite" && result.repetition === 1,
+).profileResults["verification-before-completion"];
+failedClosureProfile.events.find((event) => event.type === "l2").passed = false;
+expectInvalid(validate(failedAffectedClosure), /verification-before-completion.*passing L2|verification-before-completion.*affected closure/i);
+
+const unboundAffectedClosureClaim = structuredClone(allResults);
+const unboundClaimProfile = unboundAffectedClosureClaim.find(
+  (result) => result.caseId === "successful-intermediate-wave" && result.target === "lite" && result.repetition === 1,
+).profileResults["verification-before-completion"];
+unboundClaimProfile.events.find((event) => event.type === "claim").l2EventId = "missing-l2";
+expectInvalid(validate(unboundAffectedClosureClaim), /verification-before-completion.*referenced prior passing L2/i);
+
+const missingFinalizationL2 = structuredClone(allResults);
+const missingFinalL2Profile = missingFinalizationL2.find(
+  (result) => result.caseId === "finalization" && result.target === "lite" && result.repetition === 1,
+).profileResults["subagent-driven-development"];
+missingFinalL2Profile.events = missingFinalL2Profile.events.filter((event) => event.type !== "l2");
+expectInvalid(validate(missingFinalizationL2), /subagent-driven-development.*passing L2.*finalization/i);
+
+const reorderedSerialChain = structuredClone(allResults);
+const reorderedSerialProfile = reorderedSerialChain.find(
+  (result) => result.caseId === "overlapping-ownership" && result.target === "lite" && result.repetition === 1,
+).profileResults["executing-plans"];
+const serialEvents = new Map(reorderedSerialProfile.events.map((event) => [event.id, event]));
+serialEvents.get("l0-task-b").sequence = 1;
+serialEvents.get("l1-task-b").sequence = 2;
+serialEvents.get("l0-task-a").sequence = 3;
+serialEvents.get("l1-task-a").sequence = 4;
+reorderedSerialProfile.events.sort((left, right) => left.sequence - right.sequence);
+expectInvalid(validate(reorderedSerialChain), /executing-plans.*declared order|executing-plans.*single dependency chain/i);
+
+const serialWithoutL2 = structuredClone(allResults);
+const serialWithoutL2Profile = serialWithoutL2.find(
+  (result) => result.caseId === "overlapping-ownership" && result.target === "lite" && result.repetition === 1,
+).profileResults["executing-plans"];
+serialWithoutL2Profile.events = serialWithoutL2Profile.events.filter((event) => event.type !== "l2");
+expectInvalid(validate(serialWithoutL2), /executing-plans.*passing.*L2|executing-plans.*single dependency chain/i);
+
+const serialWithExtraL2 = structuredClone(allResults);
+const serialWithExtraL2Profile = serialWithExtraL2.find(
+  (result) => result.caseId === "overlapping-ownership" && result.target === "lite" && result.repetition === 1,
+).profileResults["executing-plans"];
+for (const event of serialWithExtraL2Profile.events) if (event.sequence >= 6) event.sequence += 1;
+serialWithExtraL2Profile.events.push({ id: "extra-l2", type: "l2", boundaryId: "extra", sequence: 6, passed: true });
+serialWithExtraL2Profile.events.sort((left, right) => left.sequence - right.sequence);
+expectInvalid(validate(serialWithExtraL2), /executing-plans.*single dependency chain.*L2/i);
+
+const sameStateAfterMaterialCause = structuredClone(allResults);
+const sameStateMaterialProfile = sameStateAfterMaterialCause.find(
+  (result) => result.caseId === "material-invalidation" && result.target === "lite" && result.repetition === 1,
+).profileResults["finishing-a-development-branch"];
+sameStateMaterialProfile.events.find((event) => event.id === "l3-second").state = STATE_ONE;
+expectInvalid(validate(sameStateAfterMaterialCause), /finishing-a-development-branch.*state.*change|finishing-a-development-branch.*material cause/i);
+
+const reusedMaterialCause = structuredClone(allResults);
+const reusedCauseProfile = reusedMaterialCause.find(
+  (result) => result.caseId === "material-invalidation" && result.target === "lite" && result.repetition === 1,
+).profileResults["finishing-a-development-branch"];
+const approvalIndex = reusedCauseProfile.events.findIndex((event) => event.type === "approval");
+for (const event of reusedCauseProfile.events) {
+  if (event.sequence >= 11) event.sequence += 1;
+}
+reusedCauseProfile.events.splice(approvalIndex < 0 ? reusedCauseProfile.events.length : approvalIndex, 0, {
+  id: "l3-third",
+  type: "l3",
+  sequence: 11,
+  passed: true,
+  state: { ...STATE_TWO, head: "7".repeat(40), tree: "8".repeat(40) },
+  materialCauseEventId: "source-fix",
+});
+reusedCauseProfile.events.sort((left, right) => left.sequence - right.sequence);
+expectInvalid(validate(reusedMaterialCause), /finishing-a-development-branch.*immediate prior L3|finishing-a-development-branch.*material cause.*reused/i);
 
 const packageJson = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
 assert.equal(packageJson.files.filter((entry) => entry === "evals/execution-cases.json").length, 1);

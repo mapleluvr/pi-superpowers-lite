@@ -23,7 +23,7 @@ Read the plan once and create `.superpowers/sdd/progress.md`. Before dispatch:
 
 - resolve plan/spec contradictions and missing selective commands;
 - require reviewed, pinned high-risk contract spines before their consumers fan out;
-- verify graph dependencies, `owns` sets, mutable-resource isolation, and the named fail-first frontier;
+- verify graph dependencies, `owns` sets, exact `mutableResources` identities, their same-wave isolation, and the named fail-first frontier;
 - defer settings, migrations, deploys, destructive cutovers, and other live effects;
 - record the branch start and exact clean `HEAD`, tree, and status.
 
@@ -35,15 +35,16 @@ For each topological wave:
 
 1. Freeze one clean wave base (`WAVE_BASE`, tree, and empty status). A **single canonical integrator** owns the real checkout.
 2. Run every plan-declared L0 probe for the current frontier against that base. Record the command, result, and frontier identity. Failed or unavailable L0 means zero fanout: stop and re-plan before dispatch.
-3. Extract one brief per task with exact `dependsOn`, `owns`, passed L0 evidence, risk, and declared L1. Only after L0 passes, dispatch one native parallel group with `worktree: true`; `failFast` is only an optimization.
+3. Extract one brief per task with exact `dependsOn`, `owns`, `mutableResources`, passed L0 evidence, risk, and declared L1. Only after L0 passes, dispatch one native parallel group with `worktree: true`; `failFast` is only an optimization.
 4. Each implementer verifies the supplied L0 identity, runs task L1, self-review, and commits only owned paths. Native Pi destroys its temporary branch/worktree after capture; the native handoff is a **patch**, not a branch merge. Persistent-branch language applies only to separately managed worktrees.
 5. Wait for every worker and captured patch. Any failed, blocked, missing, or unresolved worker quarantines the entire wave and **integrates zero** patches.
-6. Before any patch is applied anywhere, preflight the complete set: every required patch is non-empty; changed paths are a subset of `owns`, including renames and deletions; same-wave write sets do not overlap; and `git apply --check` passes against the unchanged frozen base. Any mismatch integrates zero.
+6. Before any patch is applied anywhere, preflight the complete set: every required patch is non-empty; changed paths are a subset of `owns`, including renames and deletions; same-wave write sets and exact `mutableResources` identities do not overlap; and `git apply --check` passes against the unchanged frozen base. Any mismatch integrates zero.
 7. Complete risk-gated task review where required. Critical or Important findings block the whole wave.
 8. Apply approved patches in plan order on canonical. After each apply, run only its dedicated L1, inspect the diff, and make the declared atomic commit. A conflict, path drift, shared-resource collision, or contract mismatch triggers the recovery below, not ad-hoc conflict surgery.
 9. Run the wave's **union L2** affected closure once.
-10. On either post-apply L1 or union-L2 failure, reverse-apply the current uncommitted patch, then revert every prior commit from this wave in reverse order without rewriting history. Stop on cleanup conflict; otherwise require clean status and the original `WAVE_BASE` tree before re-planning and redispatching the whole wave from a new clean base.
-11. Record commits and scoped evidence in the ledger. Start the next wave only from clean state.
+10. On a **post-apply L1 failure before commit**, reverse-apply only the current uncommitted patch, then revert every earlier commit from this wave in reverse order without rewriting history.
+11. On a **union-L2 failure after all wave patches are committed**, do not reverse-apply any patch. Revert every commit from this wave in reverse order without rewriting history.
+12. For either recovery, stop on cleanup conflict; otherwise require clean status and the original `WAVE_BASE` tree before re-planning and redispatching the whole wave from a new clean base. Record commits and scoped evidence only for a passing wave; start the next wave only from clean state.
 
 No task or intermediate wave runs repository-wide L3.
 
@@ -64,7 +65,7 @@ Task-level risk review never replaces the final whole-branch review.
 
 ## Implementer Dispatch
 
-Pass artifact paths, not the full plan or session history. A brief names the frozen base, owned paths, controller-passed L0 evidence and frontier identity, exact declared L1, interfaces, report path, and model. The implementer must not run L2, package-wide, repository-wide, migration, deployment, or settings effects. It reports only task-local evidence and concerns.
+Pass artifact paths, not the full plan or session history. A brief names the frozen base, owned paths, exact `mutableResources` identities, controller-passed L0 evidence and frontier identity, exact declared L1, interfaces, report path, and model. The implementer must not run L2, package-wide, repository-wide, migration, deployment, or settings effects. It reports only task-local evidence and concerns.
 
 Treat statuses explicitly: `SOURCE_READY`, `DONE_WITH_CONCERNS`, `NEEDS_CONTEXT`, or `BLOCKED`. Only `SOURCE_READY` with a complete report and patch may enter complete-set preflight. Never turn a failed dispatch into implied approval.
 

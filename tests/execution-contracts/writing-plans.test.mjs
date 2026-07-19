@@ -9,7 +9,7 @@ assert.match(skill, /two or more independently mergeable (?:implementation )?uni
 assert.match(skill, /single (?:dependency|sequential) chain.*(?:serial|no DAG)|(?:no DAG|serial).*single (?:dependency|sequential) chain/is,
   "single-chain Full work must remain serial without DAG ceremony");
 
-for (const field of ["task", "wave", "dependsOn", "owns", "produces", "consumes", "risk", "L1", "L2"]) {
+for (const field of ["task", "wave", "dependsOn", "owns", "mutableResources", "produces", "consumes", "risk", "L1", "L2"]) {
   assert.match(skill, new RegExp(`\\b${field}\\b`, "i"), `execution graph must define ${field}`);
 }
 
@@ -26,6 +26,10 @@ for (const requirement of [
   assert.match(skill, requirement, `plan must define ${requirement}`);
 }
 
+assert.match(skill, /mutableResources.*(?:database|port|cache|service|temp)|(?:database|port|cache|service|temp).*mutableResources/is,
+  "plans must assign exact mutable resource identities");
+assert.match(skill, /Task Structure[\s\S]*Mutable resources:/i,
+  "each task brief must carry mutable resource ownership");
 assert.match(skill, /redesign.*(?:unit|boundary)|focused harness|defer.*final integration/is,
   "missing focused verification must redesign, add a harness, or defer integration");
 assert.match(skill, /L3.*finalization|finalization.*L3/is,

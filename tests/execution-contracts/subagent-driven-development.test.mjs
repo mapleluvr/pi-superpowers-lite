@@ -22,6 +22,8 @@ for (const preflight of [
 ]) {
   assert.match(skill, preflight, `wave admission must include ${preflight}`);
 }
+assert.match(skill, /Before any patch[\s\S]{0,500}write sets[\s\S]{0,120}`mutableResources`[\s\S]{0,120}do not overlap/i,
+  "complete-set preflight must check both path and mutable-resource overlap");
 assert.match(skill, /failed|blocked|unresolved/i);
 assert.match(skill, /integrates? zero|zero.*integrat/is,
   "a failed wave must integrate zero patches");
@@ -31,10 +33,10 @@ assert.match(skill, /only after L0 passes.{0,80}dispatch/is,
   "dispatch must be gated on passing L0");
 assert.match(skill, /(?:failed|unavailable).{0,40}L0.{0,80}(?:zero|no) fanout|(?:zero|no) fanout.{0,80}(?:failed|unavailable).{0,40}L0/is,
   "failed or unavailable L0 must stop fanout");
-assert.match(skill, /reverse-(?:apply|appl)|git apply --reverse/is,
-  "post-apply L1 failure must remove the current uncommitted patch");
-assert.match(skill, /(?:revert|reverting).{0,100}(?:prior|earlier|all).{0,80}commits?.{0,80}wave|(?:revert|reverting).{0,100}wave.{0,80}commits?/is,
-  "post-apply failure must revert prior commits from the failed wave");
+assert.match(skill, /post-apply L1 failure[\s\S]{0,300}reverse-(?:apply|appl)[\s\S]{0,300}revert every earlier commit from this wave/i,
+  "post-apply L1 recovery must reverse the uncommitted patch before reverting earlier wave commits");
+assert.match(skill, /union-L2 failure[\s\S]{0,300}do not reverse-apply[\s\S]{0,300}revert every commit from this wave/i,
+  "union-L2 recovery must revert committed wave changes without reverse-applying a patch");
 assert.match(skill, /(?:original|frozen|WAVE_BASE).{0,50}tree|tree.{0,50}(?:original|frozen|WAVE_BASE)/is,
   "failed-wave recovery must prove the original tree");
 assert.match(skill, /without rewriting history|do not rewrite history/i,
@@ -55,6 +57,10 @@ for (const evidence of [
   assert.match(skill, evidence, `finalization must include ${evidence}`);
 }
 
+assert.match(skill, /brief.{0,160}mutableResources|mutableResources.{0,160}brief/is,
+  "controller task briefs must carry exact mutable resource identities");
+assert.match(implementer, /mutableResources/i,
+  "implementers must verify assigned mutable resources");
 assert.match(implementer, /passed L0 evidence|L0 evidence.*passed/i,
   "implementers must require controller-provided passing L0 evidence");
 assert.match(implementer, /L0 evidence.{0,100}(?:missing|mismatched).{0,160}(?:BLOCKED|NEEDS_CONTEXT)|(?:missing|mismatched).{0,100}L0 evidence.{0,160}(?:BLOCKED|NEEDS_CONTEXT)/is,
