@@ -4,7 +4,7 @@
 
 **Goal:** Make large Full work decompose into atomic fail-first execution waves while prohibiting repository-wide validation before finalization.
 
-**Architecture:** The approved spec at `docs/superpowers/specs/2026-07-19-fail-first-wave-execution-design.md` is the workflow contract. First add a dependency-free behavioral evaluation contract and capture the unchanged baseline. Then edit eight disjoint skill domains in isolated Pi worktrees, admit their patch handoffs into one canonical integrator, register upstream drift once, run the union affected closure, and reserve package-wide validation for the final gate.
+**Architecture:** The approved spec at `docs/superpowers/specs/2026-07-19-fail-first-wave-execution-design.md` is the workflow contract. First add a dependency-free behavioral evaluation contract and capture the unchanged baseline. Then edit eight disjoint skill domains in parallel isolated Pi worktrees, mechanically preflight all captured patches, pressure-evaluate those patches one at a time in controller-owned disposable validation worktrees, obtain fresh independent reviews, and only then admit the whole wave into one canonical integrator. Register upstream drift once, run the union affected closure, and reserve package-wide validation for the final gate.
 
 **Tech Stack:** Markdown Agent Skills, Node.js 24 ESM contract tests and validators, Pi 0.80.6 CLI fresh contexts, `pi-subagents` native isolated worktrees and patch artifacts, Git, SHA-256 upstream manifest.
 
@@ -22,9 +22,9 @@
 - Every native wave starts from one frozen clean `HEAD`; a failed worker, unresolved concern, failed task review, empty required patch, ownership drift, or failed `git apply --check` integrates zero patches.
 - A high-risk shared contract is independently reviewed before fan-out. All eight skill edits are shared workflow contracts and therefore receive read-only task review before integration.
 - Subagent launches omit `timeoutMs`, `maxRuntimeMs`, `turnBudget`, and `toolBudget`.
-- Evaluation uses `Mapleluv-Main/gpt-5.6-sol-pro` with `thinking=high`, identical prompts/settings across variants, and no model substitution inside a report.
-- Transport failures may be retried up to three times with the identical prompt/model/settings; a missing observation remains missing and fails validation.
-- Generated evaluation reports and raw model outputs stay under ignored `.superpowers/evals/`; never stage them.
+- Admissible pressure evidence belongs only to evaluation epoch 3 and uses `Mapleluv/claude-sonnet-4-6` with `thinking=high`, identical prompts/settings across baseline, candidate, and integrated variants, and global evaluation concurrency 1. Epochs 1-2 and the successful Claude availability smoke are quarantined transport history, not report evidence.
+- Every evaluator process uses a 600000 ms silence-liveness threshold. Transport failures may be retried up to three times with the identical prompt/model/settings; a missing observation remains missing and fails validation. The complete evaluator process tree must terminate before evidence or worktree cleanup.
+- Generated evaluation reports and raw model outputs stay under ignored controller-owned `.superpowers/evals/` paths outside temporary worktrees; never stage them.
 - Do not change Pi settings, the extension runtime, route fixtures, package version, or unrelated skills.
 - Preserve the active local package path; execution occurs on canonical `main` because that path is the configured package source.
 
@@ -49,7 +49,7 @@ No two Tasks 2-9 own the same path. `upstream-manifest.json` and aggregate packa
 
 `S` means the immutable spec at commit `9560068b9e32c473a1072261e50e231cf3bcd6d3`. Wave 1 tasks consume definitions directly from `S`; they do not consume a sibling's unintegrated patch.
 
-| Task | Wave | `dependsOn` | `owns` | `consumes` | `produces` | Exact L1 | Exact L2 after integration | Risk/review |
+| Task | Wave | `dependsOn` | `owns` | `consumes` | `produces` | Worker static L1 component | Exact L2 after integration | Risk/review |
 |---|---:|---|---|---|---|---|---|---|
 | 1 | 0 | `S` | `evals/{execution-cases.json,README.md}`; `scripts/validate-execution-eval-report.mjs`; `tests/{validate-execution-eval-report.test.mjs,helpers/skill-contract.mjs}`; `package.json` | `S` §§5-15; unchanged skill tree | evaluator/helper contract; 50-record profiled baseline | `node tests/validate-execution-eval-report.test.mjs` | same command; `node tests/validate-eval-report.test.mjs` | shared test contract; independent approval before fan-out |
 | 2 | 1 | Task 1; `S` | `skills/brainstorming/{SKILL.md,spec-document-reviewer-prompt.md}`; `tests/execution-contracts/brainstorming.test.mjs` | `S` §§5-6; Task 1 `brainstorming` profile baseline | boundary/fail-first skill and reviewer-prompt patch; no sibling consumes it in Wave 1 | `node tests/execution-contracts/brainstorming.test.mjs` | same command; `node tests/skill-contracts.test.mjs` | shared architecture workflow; task review |
@@ -62,33 +62,33 @@ No two Tasks 2-9 own the same path. `upstream-manifest.json` and aggregate packa
 | 9 | 1 | Task 1; `S` | `skills/finishing-a-development-branch/SKILL.md`; `tests/execution-contracts/finishing-a-development-branch.test.mjs` | `S` §§11-12; Task 1 `finishing-a-development-branch` profile baseline | L3-reuse patch; no sibling consumes it in Wave 1 | `node tests/execution-contracts/finishing-a-development-branch.test.mjs` | same command; `node tests/skill-contracts.test.mjs` | finalization integrity; task review |
 | 10 | 2 | admitted Tasks 2-9 | `upstream-manifest.json`; `package.json`; `README.md`; `tests/execution-contracts/{manifest-registration.test.mjs,run-all.mjs}` | all admitted commits; Task 1 complete baseline | focused manifest/package/docs registration and integrated Lite report | `node tests/execution-contracts/manifest-registration.test.mjs` | `node tests/execution-contracts/run-all.mjs`; `node tests/skill-contracts.test.mjs`; `node tests/validate-execution-eval-report.test.mjs` | shared package/build metadata; task review before finalization |
 
-Wave 1 uses a Pi parallel chain group with `worktree: true`, `failFast: true`, and a conservative concurrency of four. `failFast` does not authorize partial integration.
+For Tasks 2-9, complete L1 acceptance is composite: the worker's exact static command in the table plus controller-attested behavioral GREEN for every mapped case/profile. A worker can report only `SOURCE_READY`; no task or wave is successful until the controller has mechanically preflighted every patch, completed the serialized behavioral component, and obtained fresh independent review.
+
+Wave 1 uses a Pi parallel chain group with `worktree: true`, `failFast: true`, and a conservative source-worker concurrency of four. `failFast` does not authorize partial integration. Model evaluation remains globally serialized and runs only after all source workers return.
 
 ## Shared Skill-Edit Protocol for Tasks 2-9
 
-Each worker edits one skill domain and completes this sequence before reporting:
+Each source worker edits one skill domain and completes this sequence before reporting:
 
 1. Read the spec, Task 1 fixtures, its exact task section, and the existing skill/prompt files.
-2. Read all five baseline repetitions for every mapped case under the task's named profile from the controller-provided absolute report path. If any required case lacks a genuine intended failure, stop without editing and report `BLOCKED`; do not invent guidance for a failure not observed.
+2. Read all five epoch-3 baseline repetitions for every mapped case under the task's named profile from the controller-provided absolute report/raw index. Quote the observed failure or rationalization in the implementer report. If any required case lacks a genuine intended failure, stop without editing and report `BLOCKED`; do not invent guidance for a failure not observed.
 3. Create the dedicated static contract test and run it against the unchanged skill. It must fail for the intended missing rule or forbidden legacy instruction, not for syntax or path errors.
 4. Make the minimum skill and supporting-prompt edit that closes the observed failures. Preserve frontmatter trigger semantics and required upstream safety gates.
-5. Run the dedicated contract test until green. Do not run another skill's test or any package-wide command.
-6. Run five fresh candidate repetitions for every mapped case under the same named profile, model, thinking level, evaluator prompt, and CLI isolation used by Task 1. Save raw outputs and the normalized partial report outside the temporary worktree at the unique controller-provided ignored path.
-7. Validate the exact `(caseId, target, repetition, profile)` subset with the exported validator API and manually read every raw response. Static anchors alone do not satisfy GREEN.
-8. Run `git diff --check`, inspect the full task diff, and record before/after word counts. The primary `SKILL.md` and any supporting prompt must not exceed their individual baseline word count listed below.
-9. Commit only owned paths and write an implementer report accounting for every required baseline and candidate tuple, including verbatim baseline failure/rationalization excerpts, static RED/GREEN evidence, manual scoring notes, word counts, diff scope, and concerns.
+5. Run the dedicated contract test until green. Do not run another skill's test, a model evaluation, or any package-wide command.
+6. Run `git diff --check`, inspect the full task diff, and record before/after word counts. The primary `SKILL.md` and any supporting prompt must not exceed their individual baseline word count listed below.
+7. Commit only owned paths and write an implementer report accounting for every required baseline tuple, including verbatim baseline failure/rationalization excerpts, static RED/GREEN evidence, word counts, diff scope, and concerns. Return `SOURCE_READY`, never `DONE`, because behavioral GREEN and independent review remain controller-owned.
 
-Workers do not dispatch reviewers. The controller owns independent review after native patch capture and temporary-worktree cleanup.
+Workers do not dispatch reviewers and do not run candidate model processes. After native patch capture, the controller first preflights the complete patch set, then evaluates one patch at a time in disposable detached validation worktrees as defined in the Wave 1 gate. For each mapped case/profile it runs five fresh candidate repetitions, manually reads every raw response, normalizes only observed behavior, and validates the exact `(caseId, target, repetition, profile)` subset. Static anchors alone do not satisfy GREEN. The worker static evidence and controller behavioral evidence together form task L1.
 
-The temporary evaluator invokes Pi as follows for each fresh context, with a generated system-prompt file containing the common evaluator instruction plus the relevant skill tree at that variant:
+Every pressure evaluator invokes Pi as follows, with a generated system-prompt file containing the common evaluator instruction plus the relevant skill tree at that variant:
 
 ```bash
 pi --no-extensions --no-skills --no-tools --no-context-files --no-session --mode json \
-  --provider Mapleluv-Main --model gpt-5.6-sol-pro --thinking high \
+  --provider Mapleluv --model claude-sonnet-4-6 --thinking high \
   --system-prompt "$SYSTEM_PROMPT_FILE" -p "$FIXTURE_PROMPT"
 ```
 
-The controller assigns each worker an absolute ignored `REPORT_FILE` and unique `RAW_DIR`. The ignored driver may automate calls and transport retries, but it is not package source and must not be staged. Each repetition is a separate Pi process. The same exact user prompt is used for baseline and candidate.
+The controller assigns one ignored epoch/wave-attempt evidence root outside all worktrees. The ignored driver may automate calls and identical transport retries, but it is not package source and must not be staged. Each repetition is a separate Pi process, all evaluation traffic is serialized globally, and the same exact user prompt is used for baseline and candidate.
 
 Baseline word-count ceilings:
 
@@ -147,27 +147,29 @@ The named fail-first frontier is Task 1's validator RED/GREEN, the complete 50-r
 - Final report cardinality is exactly ten cases x two targets (`baseline`, `lite`) x five repetitions = 100 records.
 - Each fixture declares one or more exact profile keys from `brainstorming`, `writing-plans`, `subagent-driven-development`, `dispatching-parallel-agents`, `executing-plans`, `using-git-worktrees`, `verification-before-completion`, and `finishing-a-development-branch`.
 - Each result keeps one `(caseId, target, repetition)` identity and a `profileResults` object. Validator selection has exactly three modes: no filters requires the complete 100-record two-target report; `--target baseline` with no case/profile filters requires the complete 50-record baseline with all applicable profiles; any narrower selection requires one target, at least one `--case`, and exactly one `--profile`. All other filter combinations fail. Duplicates, missing requested records, or missing requested profile results fail.
+- Every accepted observation is bound to evaluation epoch `3`; exact provider/model/thinking and ordered CLI-isolation flags; SHA-256 of the fixture, common evaluator prompt, generated system prompt, admitted patch bytes, and raw response bytes; frozen base commit/tree; wave-attempt ID; resulting candidate-input tree; and accepted attempt number. Baseline uses the SHA-256 of the empty patch and its Task 1 commit/tree as both base and candidate identity.
+- Reports declare target identities and an external raw/prompt evidence index. The validator recomputes committed fixture/evaluator constants, reads and hashes indexed prompt/raw files, and rejects any record whose epoch, model/settings, base/tree, wave attempt, patch, prompt, raw response, or attempt differs from its declared target identity. It also rejects epoch-1/2 and availability-smoke paths.
 - The final 100-record report requires the full conjunction of every fixture's profile assertions. Baseline profile results may fail the Lite contract. Every requested Lite profile result must pass.
-- Preserve raw model output separately from normalized observations.
+- Preserve raw model output separately from normalized observations under controller-owned ignored paths.
 
 **Acceptance evidence:**
 - RED: `node tests/validate-execution-eval-report.test.mjs` fails with `ERR_MODULE_NOT_FOUND` before the validator exists.
 - GREEN: the same command prints `execution evaluation validator contract checks passed`.
 - L2: `node tests/validate-eval-report.test.mjs` still prints `evaluation validator contract checks passed`. The Task 1 validator test itself reads `package.json#files` and proves it contains `evals/execution-cases.json`; complete structure/package traversal is deferred to L3.
-- Baseline: `node scripts/validate-execution-eval-report.mjs .superpowers/evals/fail-first-baseline.json --target baseline` accepts exactly 50 records. Every fixture contains all applicable profile results, and every Task 2-9 profile has a genuine intended failure in each mapped case.
+- Baseline: `node scripts/validate-execution-eval-report.mjs .superpowers/evals/epoch-3/task-1-baseline/report.json --target baseline` accepts exactly 50 epoch-3 records. Every fixture contains all applicable profile results, every Task 2-9 profile has a genuine intended failure in each mapped case, and all provenance/hash/index checks pass.
 
 **Risk and rollback:** The validator is a shared contract spine. A permissive validator could manufacture confidence; its independent review must approve before Wave 1. Rollback is the single Task 1 commit.
 
 **Implementation intent:**
 
 - Fixtures use the exact IDs `stable-disjoint-components`, `unstable-shared-interface`, `overlapping-ownership`, `failed-worker`, `successful-intermediate-wave`, `missing-focused-command`, `finalization`, `same-state-finishing`, `material-invalidation`, and `live-effect-gate`.
-- Each normalized result includes `caseId`, `target`, `repetition`, shared observations, and `profileResults`. Profile results hold the relevant skill calls, task/wave ownership and dependency observations, handoff kind, failed-wave integration count, pre-finalization L3 count, intermediate claims, finalization state, L3 events with material-cause references, live-effect ordering, and profile `pass`.
+- Each normalized result includes `caseId`, `target`, `repetition`, the complete evidence binding, shared observations, and `profileResults`. Profile results hold the relevant skill calls, task/wave ownership and dependency observations, handoff kind, failed-wave integration count, pre-finalization L3 count, intermediate claims, finalization state, L3 events with material-cause references, live-effect ordering, and profile `pass`.
 - The validator applies each fixture's profile-specific assertion set and enforces `fullSuiteCallsBeforeFinalization === 0`, disjoint same-wave ownership, satisfied dependencies, native `patch` handoff when expected, zero integration after failed waves, scoped intermediate claims, passing final L3 before completion, a material-cause reference before every later L3, and live effects only after L3 plus final approval.
-- Validator tests cover all three legal selection modes; reject target-only Lite, case-without-profile, profile-without-case, and mixed ambiguous filters; cover duplicate/missing tuples, absent/wrong profiles, a partial profile falsely satisfying another skill's assertions, and failure of the final report when any applicable profile is absent.
+- Validator tests cover all three legal selection modes; reject target-only Lite, case-without-profile, profile-without-case, and mixed ambiguous filters; cover duplicate/missing tuples, absent/wrong profiles, a partial profile falsely satisfying another skill's assertions, and failure of the final report when any applicable profile is absent. Add negative tests for every provenance field and for mixed epoch, provider/model/thinking, flags, fixture/evaluator/system-prompt hash, base/tree, wave attempt, patch hash, candidate tree, raw hash, and accepted attempt.
 - `tests/helpers/skill-contract.mjs` exports only path-safe read/frontmatter/section/word-count helpers used by the eight dedicated contract tests.
-- Extend `evals/README.md` with the execution protocol, raw-evidence rule, exact model settings, five repetitions per case/profile, `profileResults` schema, and partial/final validator commands.
+- Extend `evals/README.md` with epoch 3, exact model/settings/liveness/serialization, raw and prompt hashing, evidence identity, five repetitions per case/profile, `profileResults` schema, and partial/final validator commands.
 - Add `evals/execution-cases.json` to `package.json#files` and append only `node tests/validate-execution-eval-report.test.mjs` to the current test script. Wave 1 contract tests are registered later by Task 10.
-- Create the ignored temporary runner under `.superpowers/evals/`, run all ten baseline cases five times, manually read all 50 raw responses, normalize observations without fabricating absent fields, and keep the report untracked.
+- Commit the source contract on the isolated Task 1 branch before model execution so every observation can bind to that exact commit/tree. Create the ignored runner under `.superpowers/evals/epoch-3/`, run all ten baseline cases five times at global concurrency 1, manually read all 50 raw responses, normalize observations without fabricating absent fields, and keep the report untracked. Any source correction changes the commit/tree and invalidates all earlier observations.
 
 **Commit:**
 
@@ -176,7 +178,11 @@ git add evals/execution-cases.json evals/README.md scripts/validate-execution-ev
 git commit -m "test: define fail-first execution evaluations"
 ```
 
-After commit, dispatch an independent read-only review of Task 1. Wave 1 must not start until that review approves the validator and fixtures.
+### Task 1 Recovery After the Failed GPT Epoch
+
+The prior source commit `2a4e6e4d3002e7d65fe3a2213b2db280cab03641` and its temporary directories are recovery inputs only. Export that commit's owned diff, verify the registered and held directories contain no additional unique owned bytes, then create a fresh isolated Task 1 branch/worktree from the amended canonical plan commit. Apply the owned patch there, update it to the epoch-3 evidence contract, rerun focused static RED/GREEN, and commit. Do not use either prior temporary directory or its branch as `WAVE_BASE`.
+
+Run and validate the complete epoch-3 baseline at the new Task 1 commit. Then dispatch an independent read-only review over the spec/plan, Task 1 base-to-commit diff, RED/GREEN output, 50 raw responses and index, manual scoring, normalized report, validator output, transport-history quarantine, and residual risks. Only after approval may canonical `main` fast-forward to the reviewed Task 1 commit; that exact clean commit/tree becomes `WAVE_BASE`. Wave 1 must not start sooner.
 
 ---
 
@@ -501,17 +507,36 @@ git commit -m "feat: reuse final verification evidence"
 
 ## Wave 1 Patch Review, Admission, and Integration Gate
 
-The controller performs this gate; no worker owns the canonical checkout or dispatches its own reviewer.
+The controller performs this gate; no worker owns the canonical checkout, runs candidate model traffic, or dispatches its own reviewer.
 
-- [ ] Record `WAVE_BASE=$(git rev-parse HEAD)`, `WAVE_BASE_TREE=$(git rev-parse HEAD^{tree})`, and require `git status --short` to be empty before dispatch.
-- [ ] Dispatch Tasks 2-9 in one parallel group with isolated worktrees, `failFast: true`, and concurrency four.
-- [ ] Wait for every worker. Any failed, blocked, missing-output, or unresolved-concern result quarantines every wave artifact and integrates zero patches.
-- [ ] After Pi captures each patch and removes its temporary worktree, confirm the required write patch is non-empty and that its task brief, implementer report, raw-output index, and complete profiled candidate evidence exist at controller-owned saved paths.
-- [ ] Build one read-only review package per task from `WAVE_BASE`, the saved patch, brief, report, raw-output index, and evidence. Dispatch fresh independent reviewers from the controller; reviewers receive no write task. Wait for every verdict.
-- [ ] Any Critical/Important finding, non-approval, or evidence mismatch quarantines all patches and integrates zero. Resolve the cause and redispatch a replacement wave from the unchanged clean base.
-- [ ] After all reviews approve, enumerate every patch's added/modified/deleted/renamed paths and require them to be a subset of that task's ownership row.
-- [ ] For each artifact, set `PATCH_FILE` to its absolute saved path and run `git apply --check "$PATCH_FILE"` against the frozen canonical base before applying any patch. Any failure rejects the complete set before application.
-- [ ] Initialize an ordered `WAVE_COMMITS` ledger. Apply approved patches in Task 2 through Task 9 order. After each apply, run only its dedicated contract test, inspect the diff, create the specified atomic canonical commit, and append that SHA to `WAVE_COMMITS`.
+### Source Dispatch and Complete-Set Preflight
+
+- [ ] Record `WAVE_ATTEMPT_ID`, `WAVE_BASE=$(git rev-parse HEAD)`, `WAVE_BASE_TREE=$(git rev-parse HEAD^{tree})`, and the exact empty output of `git status --short`. This state must match the independently approved Task 1 commit.
+- [ ] Dispatch Tasks 2-9 in one parallel group with isolated native worktrees, `failFast: true`, and source-worker concurrency four.
+- [ ] Wait for every worker and native patch capture/cleanup. Every worker must return `SOURCE_READY`, a non-empty patch for a write task, its task brief, implementer report, baseline evidence references, static RED/GREEN output, diff self-review, and word counts. Any failed, blocked, missing-output, or unresolved-concern result quarantines every wave artifact and integrates zero patches.
+- [ ] Before applying any patch in any checkout, preflight the complete set: compute each patch SHA-256; enumerate added/modified/deleted/renamed paths and require them to be a subset of that task's `owns`; reject overlap across same-wave write sets; run `git apply --check "$PATCH_FILE"` against the unchanged frozen canonical base for every patch. Verify canonical `HEAD`, tree, and clean output remain exactly `WAVE_BASE`, `WAVE_BASE_TREE`, and empty after every check.
+- [ ] Any complete-set preflight failure quarantines every patch and all artifacts under this `WAVE_ATTEMPT_ID`; no validation worktree is created and canonical integration remains zero.
+
+### Controller-Owned Serialized Behavioral L1
+
+For each mechanically admitted patch, one at a time:
+
+- [ ] Snapshot canonical `HEAD`, tree, and status and require the frozen values.
+- [ ] Create a new controller-owned disposable detached worktree from exactly `WAVE_BASE`. Confirm its `HEAD`, tree, and clean status before applying anything.
+- [ ] Apply exactly one saved patch. Stage only to compute `CANDIDATE_TREE=$(git write-tree)`, then restore the index to `WAVE_BASE` without changing worktree bytes. Bind evidence to epoch 3, `WAVE_ATTEMPT_ID`, task/profile, `WAVE_BASE`/tree, patch SHA-256, and `CANDIDATE_TREE`.
+- [ ] Run the task's dedicated static contract once in this candidate checkout, then run five fresh candidate repetitions for every mapped case/profile at global evaluation concurrency 1. Store generated system prompts, raw responses, normalized results, attempt metadata, hashes, validator output, and manual scoring only under the controller-owned external evidence root.
+- [ ] Require every evaluator process tree to be terminated. Recompute the candidate tree from the checkout and require exact equality with `CANDIDATE_TREE`; any tracked or untracked evaluator mutation is an evidence failure.
+- [ ] Run the exact profile validator. Together with the worker static evidence, this passing controller-attested candidate evidence completes task L1.
+- [ ] Restore the index to `WAVE_BASE`, run reverse-check and reverse-apply for the exact patch, and require the validation worktree `HEAD`/tree/status to equal its original clean `WAVE_BASE` state. Remove the worktree normally, prune registration, and confirm both path and registration are absent. Cleanup failure blocks and quarantines the entire wave.
+- [ ] Re-read canonical `HEAD`, tree, and status and require the frozen values before proceeding to the next patch.
+
+Any candidate failure, identity mismatch, missing raw response, false-positive normalization, process-tree residual, tree drift, or cleanup failure quarantines every patch and every candidate-evidence artifact for the wave attempt; those artifacts remain diagnostic history but are inadmissible to a retry. Canonical integration remains zero.
+
+### Fresh Review and Canonical Integration
+
+- [ ] Build one review package per task containing the epoch-3 baseline report, raw index and manual scoring; task brief; implementer report; saved patch and patch hash; static RED/GREEN; candidate prompt/raw index, normalized report, identity hashes, validator output and manual scoring; word counts; and concerns.
+- [ ] Dispatch fresh read-only reviewers from the controller and wait for every verdict. Any Critical/Important finding, non-approval, or evidence mismatch quarantines the whole wave and integrates zero; resolve the cause and redispatch every source task from the unchanged clean base.
+- [ ] After all composite L1 evidence and reviews approve, initialize an ordered `WAVE_COMMITS` ledger. Apply approved patches in Task 2 through Task 9 order. After each apply, run only its dedicated contract test, inspect the diff, create the specified atomic canonical commit, and append that SHA to `WAVE_COMMITS`.
 - [ ] After all eight commits, run the union L2 commands:
 
 ```bash
@@ -561,7 +586,7 @@ Record the new clean `RETRY_BASE=$(git rev-parse HEAD)`; its tree must equal the
 - RED: create `tests/execution-contracts/manifest-registration.test.mjs`, then run it before metadata edits. It fails on stale statuses, missing aggregate script registration, and missing README/spec linkage.
 - GREEN: after focused metadata/docs changes, `node tests/execution-contracts/manifest-registration.test.mjs` passes. It checks exactly the eleven expected path/status/original-upstream-hash entries, `package.json#files`, the single aggregate-script entry, and README linkage without traversing the full imported tree.
 - L2 static closure: `node tests/execution-contracts/run-all.mjs`, `node tests/skill-contracts.test.mjs`, and `node tests/validate-execution-eval-report.test.mjs` all pass. Complete structure and upstream traversal remain L3.
-- L2 behavior: five fresh Lite repetitions for every one of the ten cases combine with the preserved baseline into 100 records; every applicable profile result is present, the full-conjunction validator passes, and manual inspection finds no false-positive normalization.
+- L2 behavior: at global evaluation concurrency 1, five fresh integrated Lite repetitions for every one of the ten cases combine with the preserved epoch-3 baseline into 100 records. Every record passes the epoch/model/flags/prompt/base/patch/tree/raw/attempt identity contract, every applicable profile result is present, the full-conjunction validator passes, and manual inspection finds no false-positive normalization.
 - Size: the combined eight primary `SKILL.md` files are at most 8192 words and each file/prompt stays within its individual ceiling.
 
 **Risk and rollback:** Manifest mistakes break parity or permit drift. Behavior gaps trigger one focused fix wave in the owning skill, renewed task-local evidence/review, and rerun of only affected integrated cases before this task can pass.
@@ -573,7 +598,7 @@ Record the new clean `RETRY_BASE=$(git rev-parse HEAD)`; its tree must equal the
 - Append `node tests/execution-contracts/run-all.mjs` to `package.json#scripts.test`; keep existing test order and append only once.
 - Keep `evals/execution-cases.json` in the package allowlist and keep generated results excluded.
 - Add a concise README section describing applicability, contract spine, patch waves, L0-L3, finalization-only L3, and scoped claims. Link the approved spec instead of copying it.
-- Run all ten Lite cases with the same Task 1 settings. Preserve raw evidence, manually inspect all 50 outputs, merge normalized observations with the untouched 50-record baseline, and validate the 100-record report.
+- Run all ten integrated Lite cases serially with the exact epoch-3 Task 1 settings. Bind the target identity to the integrated base, full integrated patch hash, resulting tree, generated prompts, accepted attempts, and raw hashes. Preserve raw evidence, manually inspect all 50 outputs, merge normalized observations with the untouched epoch-3 50-record baseline, and validate the 100-record report.
 
 **Commit:**
 
@@ -597,7 +622,7 @@ Finalization starts only after Task 10 is committed, the canonical checkout is c
 npm test
 npm run typecheck
 npm run upstream:check -- --source "C:/Users/mapleland/.pi/agent/git/github.com/obra/superpowers"
-node scripts/validate-execution-eval-report.mjs .superpowers/evals/fail-first-final.json
+node scripts/validate-execution-eval-report.mjs .superpowers/evals/epoch-3/final/report.json
 npm pack --dry-run --json
 ```
 
