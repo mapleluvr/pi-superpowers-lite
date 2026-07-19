@@ -1,49 +1,24 @@
 # Plan Document Reviewer Prompt Template
 
-Use this template when dispatching a plan document reviewer subagent.
+Use after a Full implementation plan is written.
 
-**Purpose:** Verify the plan is complete, matches the spec, and has proper task decomposition.
+```text
+Review [PLAN_FILE_PATH] against [SPEC_FILE_PATH] read-only. Approve unless a defect can make execution wrong, unsafe, or blocked.
 
-**Dispatch after:** The complete plan is written.
+Check spec coverage, placeholders, exact ownership, interfaces, commands, and rollback. For a graph plan, block on:
+- same-wave path or mutable-resource overlap;
+- a dependency violation inside a wave;
+- missing patch ownership or canonical integrator;
+- artificial decomposition of one transactional invariant;
+- missing or unpassed fail-first frontier;
+- L2 without reverse consumers, shared surfaces, exact filters, or exclusion rationale;
+- a fake affected closure that is actually repository-wide;
+- early L3 in an implementation task or wave;
+- missing finalization preconditions, evidence record, or final review.
 
+Output:
+## Plan Review
+**Status:** Approved | Issues Found
+**Issues:** [task/section, defect, execution consequence]
+**Recommendations:** [non-blocking only]
 ```
-Subagent (general-purpose):
-  description: "Review plan document"
-  prompt: |
-    You are a plan document reviewer. Verify this plan is complete and ready for implementation.
-
-    **Plan to review:** [PLAN_FILE_PATH]
-    **Spec for reference:** [SPEC_FILE_PATH]
-
-    ## What to Check
-
-    | Category | What to Look For |
-    |----------|------------------|
-    | Completeness | TODOs, placeholders, incomplete tasks, missing steps |
-    | Spec Alignment | Plan covers spec requirements, no major scope creep |
-    | Task Decomposition | Tasks have clear boundaries, steps are actionable |
-    | Buildability | Could an engineer follow this plan without getting stuck? |
-
-    ## Calibration
-
-    **Only flag issues that would cause real problems during implementation.**
-    An implementer building the wrong thing or getting stuck is an issue.
-    Minor wording, stylistic preferences, and "nice to have" suggestions are not.
-
-    Approve unless there are serious gaps — missing requirements from the spec,
-    contradictory steps, placeholder content, or tasks so vague they can't be acted on.
-
-    ## Output Format
-
-    ## Plan Review
-
-    **Status:** Approved | Issues Found
-
-    **Issues (if any):**
-    - [Task X, Step Y]: [specific issue] - [why it matters for implementation]
-
-    **Recommendations (advisory, do not block approval):**
-    - [suggestions for improvement]
-```
-
-**Reviewer returns:** Status, Issues (if any), Recommendations

@@ -7,16 +7,13 @@ description: Use for Full-route work after an approved spec, before implementati
 
 ## Overview
 
-Write a durable plan for Full-route work after the design is approved. Give a capable engineer enough context to preserve intent, interfaces, invariants, and evidence without repeating the spec or pre-writing ordinary implementation code.
+Write a durable plan for Full-route work after the design is approved. Give a capable engineer enough context to preserve intent, interfaces, invariants, and evidence without repeating the spec or pre-writing routine implementation.
 
-Assume the executor is a skilled developer with no session history. The plan must stand alone by referencing the approved spec, naming exact ownership boundaries, and making risky decisions explicit. DRY. YAGNI. TDD. Reviewable commits.
+Assume the executor has no session history. Reference the approved spec for WHAT and WHY, name exact ownership boundaries, and make risky decisions explicit. DRY. YAGNI. TDD. Reviewable commits.
 
 **Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
 
-**Context:** If working in an isolated worktree, it should have been created via the `superpowers:using-git-worktrees` skill at execution time.
-
-**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md`
-- (User preferences for plan location override this default)
+**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md` unless the user chooses another path.
 
 ## Intent-Level Content
 
@@ -32,65 +29,46 @@ Risk and rollback
 Pseudocode only for fragile or non-obvious logic
 ```
 
-Reference the approved spec for WHAT and WHY instead of restating it. Ordinary
-steps do not copy full function bodies, complete test files, or repeated TDD
-narration. Use exact snippets only for migrations, destructive operations,
-protocol boundaries, fragile configuration, or genuinely non-obvious algorithms.
+Ordinary steps do not copy full function bodies, complete test files, or repeated TDD narration. Use exact snippets only for migrations, destructive operations, protocol boundaries, fragile configuration, or genuinely non-obvious algorithms.
 
-## Scope Check
+## Choose the Plan Shape
 
-If the spec covers multiple independent subsystems, it should have been broken into sub-project specs during brainstorming. If it wasn't, suggest breaking this into separate plans — one per subsystem. Each plan should produce working, testable software on its own.
+Use an execution graph only when a cohesive Full objective contains **two or more independently mergeable implementation units**. A single dependency chain stays serial and needs no DAG ceremony. Keep one transactional invariant under one owner rather than splitting it artificially.
 
-## File Structure
+Before tasks, record:
 
-Before defining tasks, map out which files will be created or modified and what each one is responsible for. This is where decomposition decisions get locked in.
+- approved spec path and immutable version or hash;
+- file/contract ownership map;
+- base SHA, available CI status (`unknown` is valid), and exact L0-L2 results labeled **selective baseline**;
+- a named **fail-first frontier** that must pass before broad implementation;
+- finalization preconditions and rollback boundary.
 
-- Design units with clear boundaries and well-defined interfaces. Each file should have one clear responsibility.
-- You reason best about code you can hold in context at once, and your edits are more reliable when files are focused. Prefer smaller, focused files over large ones that do too much.
-- Files that change together should live together. Split by responsibility, not by technical layer.
-- In existing codebases, follow established patterns. If the codebase uses large files, don't unilaterally restructure - but if a file you're modifying has grown unwieldy, including a split in the plan is reasonable.
+## Execution Graph
 
-This structure informs the task decomposition. Each task should produce self-contained changes that make sense independently.
+For qualifying work, include one table with every field:
 
-## Task Right-Sizing
+```text
+task | wave | dependsOn | owns | produces | consumes | risk | L1 | L2
+```
 
-A task is the smallest unit that carries its own test cycle and is worth a
-fresh reviewer's gate. When drawing task boundaries: fold setup,
-configuration, scaffolding, and documentation steps into the task whose
-deliverable needs them; split only where a reviewer could meaningfully
-reject one task while approving its neighbor. Each task ends with an
-independently testable deliverable.
+Same-wave tasks must have no dependency path between them, disjoint `owns` paths, and isolated mutable resources. Put a shared contract-spine task in an earlier wave and pin its reviewed contract before consumers fan out. Assign one canonical integrator; isolated writers return patches, and the plan names patch ownership.
 
-## Step Granularity
+For each wave, derive L2 from the affected closure. Name reverse consumers, shared build/configuration surfaces, exact commands and filters, and an exclusion rationale for omitted surfaces. If no trustworthy focused command exists, redesign the unit or boundary, add a focused harness, or defer that unit to final integration. Never relabel a repository-wide suite as L2.
 
-Each task must be independently testable and reviewable. Within it, describe the
-RED, implementation, verification, and commit sequence once with exact commands
-and expected evidence. Do not expand routine work into repeated two-minute
-narration; split only when a step changes ownership, risk, or acceptance evidence.
-
-## Plan Document Header
-
-**Every plan MUST start with this header:**
+## Plan Header
 
 ```markdown
 # [Feature Name] Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** Use subagent-driven-development or executing-plans. Track steps with checkboxes.
 
-**Goal:** [One sentence describing what this builds]
-
-**Architecture:** [2-3 sentences about approach]
-
-**Tech Stack:** [Key technologies/libraries]
+**Goal:** [observable result]
+**Architecture:** [approach and boundaries]
+**Tech Stack:** [technologies]
+**Approved spec:** [path and immutable identity]
 
 ## Global Constraints
-
-[The spec's project-wide requirements — version floors, dependency limits,
-naming and copy rules, platform requirements — one line each, with exact
-values copied verbatim from the spec. Every task's requirements implicitly
-include this section.]
-
----
+[exact shared requirements]
 ```
 
 ## Task Structure
@@ -98,84 +76,58 @@ include this section.]
 ````markdown
 ### Task N: [Observable outcome]
 
-**Purpose:** [user-visible or system-visible result]
+**Purpose:** [result]
 
-**Files/modules:**
-- Create: `exact/path/to/file.py`
-- Modify: `exact/path/to/existing.py`
-- Test: `tests/exact/path/to/test.py`
+**Files/modules and ownership boundary:**
+- Create/Modify/Test: `exact/path`
 
-**Interfaces and dependencies:**
-- Consumes: [existing contract, exact name/signature where stable]
-- Produces: [contract later tasks rely on]
+**Interfaces and cross-task dependencies:**
+- Consumes: [stable contract]
+- Produces: [stable contract]
 
 **Constraints and invariants:**
-- [binding requirement copied exactly from the spec]
+- [binding requirement]
 
 **Acceptance evidence:**
-- RED: `exact focused command` -> expected failure reason
-- GREEN: `exact focused command` -> expected pass evidence
-- Regression: `exact broader command` -> expected pass evidence
+- L0: `cheapest structural command` -> [expected evidence]
+- L1 RED: `exact focused command` -> [intended failure]
+- L1 GREEN: `same exact command` -> [pass]
+- L2 after integration: [wave-owned affected-closure command]
 
-**Risk and rollback:**
-- [risk boundary and practical reversal]
+**Risk and rollback:** [boundary and reversal]
 
 **Implementation intent:**
-- [ordered changes at the ownership level]
-- [pseudocode or precise snippet only when logic is fragile or non-obvious]
+- [ordered ownership-level changes]
+- [pseudocode only where needed]
 
 **Commit:**
 ```bash
-git add exact/path/to/file.py tests/exact/path/to/test.py
+git add exact/owned/paths
 git commit -m "feat: add observable outcome"
 ```
 ````
 
+No implementation task may contain an L3 command. Stop on graph, ownership, or closure contradictions and return to plan review instead of guessing.
+
+## Finalization
+
+Create one finalization section after all implementation waves. It owns the first repository-wide L3 and lists:
+
+- required clean integrated state and completed L1/L2 evidence;
+- exact complete L3 commands;
+- evidence-record fields binding results to clean HEAD, commands, tool/runtime versions, and relevant non-secret external-input hashes;
+- mandatory final whole-change review;
+- material invalidation and L3/re-review rules;
+- live-effect or destructive cutover only after passing L3 and final approval.
+
 ## No Placeholders
 
-Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
-- "TBD", "TODO", "implement later", "fill in details"
-- "Add appropriate error handling" / "add validation" / "handle edge cases"
-- "Write tests for the above" without naming observable behavior, command, and expected evidence
-- "Similar to Task N" without restating the relevant intent and interface
-- Fragile logic described vaguely instead of with pseudocode or a precise snippet
-- References to types, functions, or methods not defined in the spec, codebase, or plan
-
-## Remember
-- Exact file paths and ownership boundaries
-- Precise interfaces, invariants, acceptance evidence, risk, and rollback
-- Pseudocode only where implementation intent would otherwise be ambiguous
-- Exact commands with expected output
-- DRY, YAGNI, TDD, reviewable commits
+Reject TODO/TBD text, vague validation, unnamed edge cases, undefined interfaces, "similar to Task N," or fragile logic without pseudocode. Every command names expected evidence.
 
 ## Self-Review
 
-After writing the complete plan, look at the spec with fresh eyes and check the plan against it. This is a checklist you run yourself — not a subagent dispatch.
-
-**1. Spec coverage:** Skim each section/requirement in the spec. Can you point to a task that implements it? List any gaps.
-
-**2. Placeholder scan:** Search your plan for red flags — any of the patterns from the "No Placeholders" section above. Fix them.
-
-**3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
-
-If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
+Check spec coverage, placeholder absence, field/type consistency, graph legality, complete ownership, honest L2 derivation, and finalization-only L3. Fix defects inline before handoff.
 
 ## Execution Handoff
 
-After saving the plan, offer execution choice:
-
-**"Plan complete and saved to `docs/superpowers/plans/<filename>.md`. Two execution options:**
-
-**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
-
-**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
-
-**Which approach?"**
-
-**If Subagent-Driven chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:subagent-driven-development
-- Fresh subagent per task + two-stage review
-
-**If Inline Execution chosen:**
-- **REQUIRED SUB-SKILL:** Use superpowers:executing-plans
-- Batch execution with checkpoints for review
+Offer either **Subagent-Driven** execution with subagent-driven-development or **Inline Execution** with executing-plans. Follow the user's choice; both consume the same graph, evidence tiers, and finalization gate.
