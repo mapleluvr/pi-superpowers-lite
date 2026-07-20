@@ -89,9 +89,11 @@ prose. Add `failed-union-l2` as an eleventh fixture mapped to
 `subagent-driven-development` and `dispatching-parallel-agents`. This amendment
 supersedes every earlier fixed ten-case/100-record count: complete baseline is
 55 records and complete baseline-plus-Lite is 110. It also makes the committed
-`evals/execution-evaluator-prompt.md`, Git-tree-derived generated prompt, exact
-fixture user message, ordered recovery events, and case-folded path ownership
-part of Task 1 provenance. All other collection, manual-inspection, RED, and
+`evals/execution-evaluator-prompt.md`, Git-tree-derived fixture and generated
+prompt, exact fixture user message, ordered recovery events, and case-folded path
+ownership part of Task 1 provenance. Ignored evidence paths may hold exact Git
+blob copies to avoid checkout EOL conversion; the claimed Git tree, not the
+locator path, is authoritative. All other collection, manual-inspection, RED, and
 Lite-GREEN requirements are unchanged.
 
 ## Shared Skill-Edit Protocol for Tasks 2-9

@@ -9,14 +9,16 @@ import { parsePiJsonlResponse, validateExecutionReport } from "../scripts/valida
 import * as skillContract from "./helpers/skill-contract.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const fixturePath = path.join(root, "evals", "execution-cases.json");
-const fixtureBytes = readFileSync(fixturePath);
+const committedFixturePath = path.join(root, "evals", "execution-cases.json");
+const fixtureBytes = readFileSync(committedFixturePath);
 const fixtures = JSON.parse(fixtureBytes);
 const executionPlan = readFileSync(path.join(root, "docs", "superpowers", "plans", "2026-07-19-fail-first-wave-execution.md"), "utf8");
 const evaluationProtocol = readFileSync(path.join(root, "evals", "README.md"), "utf8");
 const evidenceRoot = mkdtempSync(path.join(os.tmpdir(), "execution-eval-contract-"));
-const evaluatorPromptPath = path.join(root, "evals", "execution-evaluator-prompt.md");
-const evaluatorPrompt = readFileSync(evaluatorPromptPath, "utf8");
+const fixturePath = path.join(evidenceRoot, "execution-cases.json");
+const canonicalEvaluatorPromptPath = path.join(root, "evals", "execution-evaluator-prompt.md");
+const evaluatorPromptPath = path.join(evidenceRoot, "execution-evaluator-prompt.md");
+const evaluatorPrompt = readFileSync(canonicalEvaluatorPromptPath, "utf8");
 const isolationFlags = [
   "--no-extensions",
   "--no-skills",
@@ -68,6 +70,8 @@ const sourceBaseSha = syntheticGitPair.sourceCommit;
 const sourceBaseTree = syntheticGitPair.sourceTree;
 const liteCandidateSha = syntheticGitPair.candidateCommit;
 const liteCandidateTree = syntheticGitPair.candidateTree;
+writeFileSync(fixturePath, execFileSync("git", ["show", `${sourceBaseSha}:evals/execution-cases.json`], { cwd: root }));
+writeFileSync(evaluatorPromptPath, execFileSync("git", ["show", `${sourceBaseSha}:evals/execution-evaluator-prompt.md`], { cwd: root }));
 const litePatchPath = path.join(evidenceRoot, "lite.patch");
 writeFileSync(litePatchPath, execFileSync("git", ["diff", "--binary", `${sourceBaseSha}..${liteCandidateSha}`], { cwd: root }));
 const profileKeys = [
@@ -493,6 +497,14 @@ assert.throws(() => skillContract.readRepoFile(path.resolve(root, "package.json"
 const allResults = completeResults();
 const completeValidation = validate(allResults);
 assert.equal(completeValidation.valid, true, completeValidation.errors.join("\n"));
+const mismatchedFixtureDocument = structuredClone(fixtures);
+mismatchedFixtureDocument[0].prompt += " altered";
+const mismatchedFixtureReport = reportFor(structuredClone(allResults));
+expectInvalid(validateExecutionReport({
+  fixtures: mismatchedFixtureDocument,
+  ...mismatchedFixtureReport,
+  repetitions: [1, 2, 3, 4, 5],
+}), /validator fixture document.*tree-bound evidence fixture/i);
 
 const baselineResults = allResults.filter((result) => result.target === "baseline");
 assert.equal(validate(baselineResults, { targets: ["baseline"] }).valid, true, "baseline-only mode accepts 50 records");

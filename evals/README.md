@@ -103,11 +103,15 @@ references the applicable target-profile identity IDs, and records:
 one unique entry per selected observation; missing and orphan index entries fail.
 The canonical evaluator instruction is committed at
 `evals/execution-evaluator-prompt.md`. For each target, the validator reads that
-blob and the fixed ordered eight-skill profile from the claimed candidate Git
-tree, reconstructs the exact generated system prompt, and requires byte equality
-with every indexed prompt. A self-consistent caller hash is not provenance. The
-final settled lifecycle must contain exactly one user `message_end`, whose text
-is byte-for-byte the selected committed fixture prompt.
+blob, the fixture blob, and the fixed ordered eight-skill profile from the claimed
+candidate Git tree, reconstructs the exact generated system prompt, and requires
+byte equality with every indexed prompt. A report may keep exact blob copies in
+its ignored evidence root so checkout EOL conversion cannot alter evidence; those
+paths are locators, while the claimed Git tree is authoritative. The validator
+also requires the parsed fixture document to match that tree-bound fixture copy.
+A self-consistent caller hash is not provenance. The final settled lifecycle
+must contain exactly one user `message_end`, whose text is byte-for-byte the
+selected committed fixture prompt.
 
 The validator reads every supplied fixture, evaluator, system-prompt, patch, and
 raw-response path and recomputes its SHA-256. Missing or mixed epochs, targets,

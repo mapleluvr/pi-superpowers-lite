@@ -1131,17 +1131,22 @@ function validateGitProvenance(identity, repositoryPath, reportRoot, errors) {
 function validateGlobalEvidence(evidence, reportRoot, errors) {
   validateFixedEvidence(evidence, "report evidence", errors);
   if (!evidence || typeof evidence !== "object") return null;
-  const fixturePath = validateEvidencePath(evidence.fixturePath, "fixture", reportRoot, errors);
-  if (fixturePath && path.resolve(fixturePath) !== path.join(PACKAGE_ROOT, FIXTURE_RELATIVE_PATH)) {
-    addError(errors, "fixture path must reference the committed evals/execution-cases.json");
-  }
-  const evaluatorPromptPath = validateEvidencePath(evidence.evaluatorPromptPath, "evaluator prompt", reportRoot, errors);
-  if (evaluatorPromptPath && path.resolve(evaluatorPromptPath) !== path.join(PACKAGE_ROOT, EVALUATOR_PROMPT_RELATIVE_PATH)) {
-    addError(errors, "evaluator prompt path must reference the canonical committed evaluator prompt");
-  }
   validateFileHash(evidence.fixturePath, evidence.fixtureSha256, "fixture", reportRoot, errors);
   validateFileHash(evidence.evaluatorPromptPath, evidence.evaluatorPromptSha256, "evaluator prompt", reportRoot, errors);
   return validateSourceRepository(evidence, reportRoot, errors);
+}
+
+function validateFixtureDocument(fixtures, evidence, reportRoot, errors) {
+  const fixturePath = validateEvidencePath(evidence?.fixturePath, "fixture", reportRoot, errors);
+  if (!fixturePath) return;
+  try {
+    const evidenceFixtures = JSON.parse(readFileSync(fixturePath, "utf8"));
+    if (JSON.stringify(evidenceFixtures) !== JSON.stringify(fixtures)) {
+      addError(errors, "validator fixture document does not match the tree-bound evidence fixture");
+    }
+  } catch (error) {
+    addError(errors, `tree-bound evidence fixture cannot be parsed: ${error.message}`);
+  }
 }
 
 function validateTargetIdentities(targetIdentities, evidence, reportRoot, sourceRepositoryPath, errors) {
@@ -1427,6 +1432,7 @@ export function validateExecutionReport({
   if (!selection) return { valid: false, errors };
 
   const sourceRepositoryPath = validateGlobalEvidence(evidence, reportRoot, errors);
+  validateFixtureDocument(fixtures, evidence, reportRoot, errors);
   const identityMaps = validateTargetIdentities(targetIdentities, evidence, reportRoot, sourceRepositoryPath, errors);
   const promptIndex = indexEvidence(evidenceIndex?.systemPrompts, "systemPrompts", reportRoot, errors);
   const rawIndex = indexEvidence(evidenceIndex?.rawResponses, "rawResponses", reportRoot, errors);
