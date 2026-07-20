@@ -14,14 +14,16 @@ Install this package instead of both `obra/superpowers` and
 Superpowers bootstrap or compatibility tools and can conflict before startup
 finishes.
 
-For this local checkout, keep one package entry in Pi settings:
+Install the Git package:
 
-```json
-"D:\\Projects\\PiAgent\\plugins\\pi-superpowers-lite"
+```bash
+pi install git:github.com/mapleluvr/pi-superpowers-lite
 ```
 
-Keep `pi-subagents` installed when Full workflows need independent execution or
-review. It is an optional companion, not a runtime dependency of this package.
+Pin a release tag or commit by appending `@<ref>`. For local development, pass
+an absolute or relative checkout path to `pi install` instead. Keep
+`pi-subagents` installed when Full workflows need independent execution or
+review; it is an optional companion, not a runtime dependency of this package.
 Reload Pi after changing package settings.
 
 ## Routes
@@ -93,7 +95,7 @@ folders independently.
 ```bash
 npm test
 npm run typecheck
-npm run upstream:check -- --source C:/Users/mapleland/.pi/agent/git/github.com/obra/superpowers
+npm run upstream:check -- --source <upstream-checkout>
 ```
 
 `npm test` covers structure and references, the pinned sync tool, extension
@@ -116,16 +118,16 @@ npm run upstream:sync -- --source <upstream-checkout>
 
 ## Rollback
 
-Remove the Lite path from Pi settings and restore these two previous package
-entries, leaving unrelated packages and `pi-subagents` unchanged:
+Remove Lite and, when needed, restore the official upstream package while
+leaving unrelated packages and `pi-subagents` unchanged:
 
-```text
-https://github.com/obra/superpowers
-D:\Projects\PiAgent\plugins\superpowers-support-work\gadgj-pi-superpowers-support
+```bash
+pi remove git:github.com/mapleluvr/pi-superpowers-lite
+pi install https://github.com/obra/superpowers
 ```
 
-Reload Pi, run `pi list`, and confirm the official package plus support adapter
-are present again.
+Reload Pi and use `pi list` to confirm that only the intended Superpowers
+package is active.
 
 ## License
 

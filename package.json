@@ -4,6 +4,20 @@
   "description": "A Pi-native, risk-proportional Superpowers skillset",
   "author": "mapleluvr",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mapleluvr/pi-superpowers-lite.git"
+  },
+  "homepage": "https://github.com/mapleluvr/pi-superpowers-lite#readme",
+  "bugs": {
+    "url": "https://github.com/mapleluvr/pi-superpowers-lite/issues"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-coding-agent",
+    "superpowers",
+    "agent-skills"
+  ],
   "type": "module",
   "main": ".pi/extensions/superpowers.ts",
   "files": [
