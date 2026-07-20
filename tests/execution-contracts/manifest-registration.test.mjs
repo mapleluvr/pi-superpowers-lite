@@ -29,6 +29,7 @@ for (const [path, upstreamHash] of expected) {
 }
 
 assert.ok(pkg.files.includes("evals/execution-cases.json"), "execution fixtures must ship");
+assert.ok(pkg.files.includes("evals/execution-evaluator-prompt.md"), "canonical execution evaluator prompt must ship");
 assert.ok(pkg.files.includes("tests"), "focused execution contracts must ship");
 assert.ok(
   pkg.files.includes("docs/superpowers/specs/2026-07-19-fail-first-wave-execution-design.md"),

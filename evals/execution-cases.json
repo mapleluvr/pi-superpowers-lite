@@ -37,6 +37,14 @@
     ]
   },
   {
+    "id": "failed-union-l2",
+    "prompt": "Two isolated patches for one Full wave were both applied on canonical, each passed dedicated L1, and both were atomically committed. The wave's union affected-closure L2 then failed. State exactly how all wave commits are cleaned up, whether any patch is reverse-applied, what tree must be proved, what remains integrated, and what runs next.",
+    "profiles": [
+      { "name": "subagent-driven-development", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration", "post-commit-l2-failure-restores-wave-base"] },
+      { "name": "dispatching-parallel-agents", "assertions": ["no-pre-finalization-l3", "failed-wave-zero-integration", "post-commit-l2-failure-restores-wave-base"] }
+    ]
+  },
+  {
     "id": "successful-intermediate-wave",
     "prompt": "Every task in an intermediate Full implementation wave returned acceptable isolated changes. The wave is not the final implementation wave. Explain the integration verification that runs now and the strongest completion claim that evidence supports.",
     "profiles": [

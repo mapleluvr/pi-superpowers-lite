@@ -32,7 +32,7 @@
 
 | Owner | Files | Responsibility |
 |---|---|---|
-| Task 1 | `evals/execution-cases.json`, `evals/README.md`, `scripts/validate-execution-eval-report.mjs`, `tests/validate-execution-eval-report.test.mjs`, `tests/helpers/skill-contract.mjs`, `package.json` | Evaluation contract, fixtures, shared read helpers, unchanged baseline |
+| Task 1 | `evals/execution-cases.json`, `evals/execution-evaluator-prompt.md`, `evals/README.md`, `scripts/validate-execution-eval-report.mjs`, `tests/validate-execution-eval-report.test.mjs`, `tests/helpers/skill-contract.mjs`, `package.json` | Evaluation contract, canonical prompt, fixtures, shared read helpers, unchanged baseline |
 | Task 2 | `skills/brainstorming/SKILL.md`, `skills/brainstorming/spec-document-reviewer-prompt.md`, `tests/execution-contracts/brainstorming.test.mjs` | Boundary-first design and reviewed contract spine |
 | Task 3 | `skills/writing-plans/SKILL.md`, `skills/writing-plans/plan-document-reviewer-prompt.md`, `tests/execution-contracts/writing-plans.test.mjs` | Executable DAG/wave plans and L2 derivation |
 | Task 4 | `skills/subagent-driven-development/SKILL.md`, `skills/subagent-driven-development/implementer-prompt.md`, `tests/execution-contracts/subagent-driven-development.test.mjs` | Native patch waves, quarantine, final L3 ownership |
@@ -51,7 +51,7 @@ No two Tasks 2-9 own the same path. `upstream-manifest.json` and aggregate packa
 
 | Task | Wave | `dependsOn` | `owns` | `mutableResources` | `consumes` | `produces` | Worker static L1 component | Exact L2 after integration | Risk/review |
 |---|---:|---|---|---|---|---|---|---|---|
-| 1 | 0 | `S` | `evals/{execution-cases.json,README.md}`; `scripts/validate-execution-eval-report.mjs`; `tests/{validate-execution-eval-report.test.mjs,helpers/skill-contract.mjs}`; `package.json` | `evidence-root:.superpowers/evals/epoch-3/task-1`; `provider-lane:epoch-3-global` | `S` §§5-15; unchanged skill tree | evaluator/helper contract; 50-record profiled baseline | `node tests/validate-execution-eval-report.test.mjs` | same command; `node tests/validate-eval-report.test.mjs` | shared test contract; independent approval before fan-out |
+| 1 | 0 | `S` | `evals/{execution-cases.json,execution-evaluator-prompt.md,README.md}`; `scripts/validate-execution-eval-report.mjs`; `tests/{validate-execution-eval-report.test.mjs,helpers/skill-contract.mjs}`; `package.json` | `evidence-root:.superpowers/evals/epoch-3/task-1`; `provider-lane:epoch-3-global` | `S` §§5-15; unchanged skill tree | evaluator/helper contract; 55-record profiled baseline | `node tests/validate-execution-eval-report.test.mjs` | same command; `node tests/validate-eval-report.test.mjs` | shared test contract; independent approval before fan-out |
 | 2 | 1 | Task 1; `S` | `skills/brainstorming/{SKILL.md,spec-document-reviewer-prompt.md}`; `tests/execution-contracts/brainstorming.test.mjs` | `native-worktree:task-2` | `S` §§5-6; Task 1 `brainstorming` profile baseline | boundary/fail-first skill and reviewer-prompt patch; no sibling consumes it in Wave 1 | `node tests/execution-contracts/brainstorming.test.mjs` | same command; `node tests/skill-contracts.test.mjs` | shared architecture workflow; task review |
 | 3 | 1 | Task 1; `S` | `skills/writing-plans/{SKILL.md,plan-document-reviewer-prompt.md}`; `tests/execution-contracts/writing-plans.test.mjs` | `native-worktree:task-3` | `S` §§7, 9-11; Task 1 `writing-plans` profile baseline | graph-plan skill and reviewer-prompt patch; no sibling consumes it in Wave 1 | `node tests/execution-contracts/writing-plans.test.mjs` | same command; `node tests/skill-contracts.test.mjs` | shared plan contract; task review |
 | 4 | 1 | Task 1; `S` | `skills/subagent-driven-development/{SKILL.md,implementer-prompt.md}`; `tests/execution-contracts/subagent-driven-development.test.mjs` | `native-worktree:task-4` | `S` §§7-13; Task 1 `subagent-driven-development` profile baseline | SDD/implementer patch; no sibling consumes it in Wave 1 | `node tests/execution-contracts/subagent-driven-development.test.mjs` | same command; `node tests/skill-contracts.test.mjs` | execution/concurrency/finalization; task review |
@@ -80,6 +80,19 @@ The binding gate is now:
 - block or remap a skill only when its whole profile has no genuine RED for the intended change, or when any observation is missing or falsely normalized.
 
 This amendment changes only RED sufficiency. Exact cardinality, provenance, per-cell inspection, Lite full-conjunction GREEN, and the prohibition on inventing absent observations remain unchanged.
+
+## Recovery Branch Coverage Amendment (2026-07-20 Final Total Review)
+
+Final Total Review found that the post-apply L1 rollback had fresh behavioral
+coverage while the distinct post-commit union-L2 rollback existed only in skill
+prose. Add `failed-union-l2` as an eleventh fixture mapped to
+`subagent-driven-development` and `dispatching-parallel-agents`. This amendment
+supersedes every earlier fixed ten-case/100-record count: complete baseline is
+55 records and complete baseline-plus-Lite is 110. It also makes the committed
+`evals/execution-evaluator-prompt.md`, Git-tree-derived generated prompt, exact
+fixture user message, ordered recovery events, and case-folded path ownership
+part of Task 1 provenance. All other collection, manual-inspection, RED, and
+Lite-GREEN requirements are unchanged.
 
 ## Shared Skill-Edit Protocol for Tasks 2-9
 
@@ -137,7 +150,7 @@ node tests/validate-eval-report.test.mjs
 
 Record the exact commands/results as `selective baseline at $BASE_SHA`. Do not claim the repository is globally clean. A pre-existing focused failure is diagnosed against the untouched base before Task 1; it is not bypassed by running L3.
 
-The named fail-first frontier is Task 1's validator RED/GREEN, the complete 50-record baseline (five repetitions for every case with all applicable profile results), manual raw-output inspection, and independent Task 1 approval. Any missing observation, permissive-validator finding, absent per-profile failure, or blocking review returns to design/planning. Wave 1 cannot start.
+The named fail-first frontier is Task 1's validator RED/GREEN, the complete 55-record baseline (five repetitions for every case with all applicable profile results), manual raw-output inspection, and independent Task 1 approval. Any missing observation, permissive-validator finding, absent per-profile failure, or blocking review returns to design/planning. Wave 1 cannot start.
 
 ---
 
@@ -147,6 +160,7 @@ The named fail-first frontier is Task 1's validator RED/GREEN, the complete 50-r
 
 **Files/modules:**
 - Create: `evals/execution-cases.json`
+- Create: `evals/execution-evaluator-prompt.md`
 - Create: `scripts/validate-execution-eval-report.mjs`
 - Create: `tests/validate-execution-eval-report.test.mjs`
 - Create: `tests/helpers/skill-contract.mjs`
@@ -155,23 +169,23 @@ The named fail-first frontier is Task 1's validator RED/GREEN, the complete 50-r
 
 **Interfaces and dependencies:**
 - Consumes: spec commit `9560068b9e32c473a1072261e50e231cf3bcd6d3` and the unchanged eight skill domains.
-- Produces: `validateExecutionReport({ fixtures, results, targets, repetitions, caseIds, profiles })`, a CLI validator with explicit `--profile` filtering, ten fixtures with profile-specific assertions, common skill-reading helpers, and the absolute ignored baseline report path for Tasks 2-9.
+- Produces: `validateExecutionReport({ fixtures, results, targets, repetitions, caseIds, profiles })`, a CLI validator with explicit `--profile` filtering, eleven fixtures with profile-specific assertions, common skill-reading helpers, and the absolute ignored baseline report path for Tasks 2-9.
 
 **Constraints and invariants:**
 - Use Node built-ins only.
-- Final report cardinality is exactly ten cases x two targets (`baseline`, `lite`) x five repetitions = 100 records.
+- Final report cardinality is exactly eleven cases x two targets (`baseline`, `lite`) x five repetitions = 110 records.
 - Each fixture declares one or more exact profile keys from `brainstorming`, `writing-plans`, `subagent-driven-development`, `dispatching-parallel-agents`, `executing-plans`, `using-git-worktrees`, `verification-before-completion`, and `finishing-a-development-branch`.
-- Each result keeps one `(caseId, target, repetition)` identity and a `profileResults` object. Validator selection has exactly three modes: no filters requires the complete 100-record two-target report; `--target baseline` with no case/profile filters requires the complete 50-record baseline with all applicable profiles; any narrower selection requires one target, at least one `--case`, and exactly one `--profile`. All other filter combinations fail. Duplicates, missing requested records, or missing requested profile results fail.
+- Each result keeps one `(caseId, target, repetition)` identity and a `profileResults` object. Validator selection has exactly three modes: no filters requires the complete 110-record two-target report; `--target baseline` with no case/profile filters requires the complete 55-record baseline with all applicable profiles; any narrower selection requires one target, at least one `--case`, and exactly one `--profile`. All other filter combinations fail. Duplicates, missing requested records, or missing requested profile results fail.
 - Every accepted observation is bound to evaluation epoch `3`; exact provider/model/thinking and ordered CLI-isolation flags; SHA-256 of the fixture, common evaluator prompt, generated system prompt, admitted patch bytes, and raw response bytes; frozen base commit/tree; wave-attempt ID; resulting candidate-input tree; and accepted attempt number. Baseline uses the SHA-256 of the empty patch and its Task 1 commit/tree as both base and candidate identity.
 - Reports declare target identities and an external raw/prompt evidence index. The validator recomputes committed fixture/evaluator constants, reads and hashes indexed prompt/raw files, and rejects any record whose epoch, model/settings, base/tree, wave attempt, patch, prompt, raw response, or attempt differs from its declared target identity. It also rejects epoch-1/2 and availability-smoke paths.
-- The final 100-record report requires the full conjunction of every fixture's profile assertions. Baseline profile results may fail the Lite contract. Every requested Lite profile result must pass.
+- The final 110-record report requires the full conjunction of every fixture's profile assertions. Baseline profile results may fail the Lite contract. Every requested Lite profile result must pass.
 - Preserve raw model output separately from normalized observations under controller-owned ignored paths.
 
 **Acceptance evidence:**
 - RED: `node tests/validate-execution-eval-report.test.mjs` fails with `ERR_MODULE_NOT_FOUND` before the validator exists.
 - GREEN: the same command prints `execution evaluation validator contract checks passed`.
 - L2: `node tests/validate-eval-report.test.mjs` still prints `evaluation validator contract checks passed`. The Task 1 validator test itself reads `package.json#files` and proves it contains `evals/execution-cases.json`; complete structure/package traversal is deferred to L3.
-- Baseline: `node scripts/validate-execution-eval-report.mjs .superpowers/evals/epoch-3/task-1-baseline/report.json --target baseline` accepts exactly 50 epoch-3 records. Every fixture contains all applicable profile results, every Task 2-9 profile has at least one genuine intended RED across its mapped cases, already-green cells are recorded as controls, and all provenance/hash/index checks pass.
+- Baseline: `node scripts/validate-execution-eval-report.mjs .superpowers/evals/epoch-3/task-1-baseline/report.json --target baseline` accepts exactly 55 epoch-3 records. Every fixture contains all applicable profile results, every Task 2-9 profile has at least one genuine intended RED across its mapped cases, already-green cells are recorded as controls, and all provenance/hash/index checks pass.
 
 **Risk and rollback:** The validator is a shared contract spine. A permissive validator could manufacture confidence; its independent review must approve before Wave 1. Rollback is the single Task 1 commit.
 
@@ -184,7 +198,7 @@ The named fail-first frontier is Task 1's validator RED/GREEN, the complete 50-r
 - `tests/helpers/skill-contract.mjs` exports only path-safe read/frontmatter/section/word-count helpers used by the eight dedicated contract tests.
 - Extend `evals/README.md` with epoch 3, exact model/settings/liveness/serialization, raw and prompt hashing, evidence identity, five repetitions per case/profile, `profileResults` schema, and partial/final validator commands.
 - Add `evals/execution-cases.json` to `package.json#files` and append only `node tests/validate-execution-eval-report.test.mjs` to the current test script. Wave 1 contract tests are registered later by Task 10.
-- Commit the source contract on the isolated Task 1 branch before model execution so every observation can bind to that exact commit/tree. Create the ignored runner under `.superpowers/evals/epoch-3/`, run all ten baseline cases five times at global concurrency 1, manually read all 50 raw responses, normalize observations without fabricating absent fields, and keep the report untracked. Any source correction changes the commit/tree and invalidates all earlier observations.
+- Commit the source contract on the isolated Task 1 branch before model execution so every observation can bind to that exact commit/tree. Create the ignored runner under `.superpowers/evals/epoch-3/`, run all eleven baseline cases five times at global concurrency 1, manually read all 55 raw responses, normalize observations without fabricating absent fields, and keep the report untracked. Any source correction changes the commit/tree and invalidates all earlier observations.
 
 **Commit:**
 
@@ -589,7 +603,7 @@ Record the new clean `RETRY_BASE=$(git rev-parse HEAD)`; its tree must equal the
 
 **Interfaces and dependencies:**
 - Consumes: all admitted Tasks 2-9 commits, Task 1 validator/baseline, and the spec.
-- Produces: manifest-complete package metadata, aggregate contract test registration, user documentation, and a valid 100-record baseline/Lite execution report.
+- Produces: manifest-complete package metadata, aggregate contract test registration, user documentation, and a valid 110-record baseline/Lite execution report.
 
 **Constraints and invariants:**
 - Do not edit any skill or Wave 1 domain contract test in this task.
@@ -601,7 +615,7 @@ Record the new clean `RETRY_BASE=$(git rev-parse HEAD)`; its tree must equal the
 - RED: create `tests/execution-contracts/manifest-registration.test.mjs`, then run it before metadata edits. It fails on stale statuses, missing aggregate script registration, and missing README/spec linkage.
 - GREEN: after focused metadata/docs changes, `node tests/execution-contracts/manifest-registration.test.mjs` passes. It checks exactly the eleven expected path/status/original-upstream-hash entries, `package.json#files`, the single aggregate-script entry, and README linkage without traversing the full imported tree.
 - L2 static closure: `node tests/execution-contracts/run-all.mjs`, `node tests/skill-contracts.test.mjs`, and `node tests/validate-execution-eval-report.test.mjs` all pass. Complete structure and upstream traversal remain L3.
-- L2 behavior: at global evaluation concurrency 1, five fresh integrated Lite repetitions for every one of the ten cases combine with the preserved epoch-3 baseline into 100 records. Every record passes the epoch/model/flags/prompt/base/patch/tree/raw/attempt identity contract, every applicable profile result is present, the full-conjunction validator passes, and manual inspection finds no false-positive normalization.
+- L2 behavior: at global evaluation concurrency 1, five fresh integrated Lite repetitions for every one of the eleven cases combine with the preserved epoch-3 baseline into 110 records. Every record passes the epoch/model/flags/prompt/base/patch/tree/raw/attempt identity contract, every applicable profile result is present, the full-conjunction validator passes, and manual inspection finds no false-positive normalization.
 - Size: the combined eight primary `SKILL.md` files are at most 8192 words and each file/prompt stays within its individual ceiling.
 
 **Risk and rollback:** Manifest mistakes break parity or permit drift. Behavior gaps trigger one focused fix wave in the owning skill, renewed task-local evidence/review, and rerun of only affected integrated cases before this task can pass.
@@ -613,7 +627,7 @@ Record the new clean `RETRY_BASE=$(git rev-parse HEAD)`; its tree must equal the
 - Append `node tests/execution-contracts/run-all.mjs` to `package.json#scripts.test`; keep existing test order and append only once.
 - Keep `evals/execution-cases.json` in the package allowlist and keep generated results excluded.
 - Add a concise README section describing applicability, contract spine, patch waves, L0-L3, finalization-only L3, and scoped claims. Link the approved spec instead of copying it.
-- Run all ten integrated Lite cases serially with the exact epoch-3 Task 1 settings. Bind the target identity to the integrated base, full integrated patch hash, resulting tree, generated prompts, accepted attempts, and raw hashes. Preserve raw evidence, manually inspect all 50 outputs, merge normalized observations with the untouched epoch-3 50-record baseline, and validate the 100-record report.
+- Run all eleven integrated Lite cases serially with the exact epoch-3 Task 1 settings. Bind the target identity to the integrated base, full integrated patch hash, resulting tree, generated prompts, accepted attempts, and raw hashes. Preserve raw evidence, manually inspect all 55 outputs, merge normalized observations with the untouched epoch-3 55-record baseline, and validate the 110-record report.
 
 **Commit:**
 
@@ -622,7 +636,7 @@ git add upstream-manifest.json package.json README.md tests/execution-contracts/
 git commit -m "docs: register fail-first wave execution"
 ```
 
-After commit, dispatch a fresh read-only Task 10 reviewer over the Task 10 base/diff, focused registration evidence, integrated 100-record report, and manual scoring notes. Critical or Important findings block finalization.
+After commit, dispatch a fresh read-only Task 10 reviewer over the Task 10 base/diff, focused registration evidence, integrated 110-record report, and manual scoring notes. Critical or Important findings block finalization.
 
 ---
 
@@ -648,7 +662,7 @@ Expected:
 - every package test exits 0 with pristine output;
 - TypeScript exits 0;
 - upstream check reports zero additions, deletions, modifications, and manifest mismatches;
-- the execution report contains exactly 100 valid records with every applicable profile result;
+- the execution report contains exactly 110 valid records with every applicable profile result;
 - the tarball includes both committed evaluation fixtures and excludes `.superpowers/` and generated result JSON.
 
 - [ ] Immediately after each L3 command, require both `test "$(git rev-parse HEAD)" = "$L3_HEAD"` and `test -z "$(git status --short)"`. If either fails, that command did not produce reusable evidence: diagnose the tracked change, commit or reverse it deliberately, and restart L3 from a newly recorded state.

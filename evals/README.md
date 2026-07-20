@@ -101,6 +101,14 @@ references the applicable target-profile identity IDs, and records:
 
 `evidenceIndex.systemPrompts` and `evidenceIndex.rawResponses` contain exactly
 one unique entry per selected observation; missing and orphan index entries fail.
+The canonical evaluator instruction is committed at
+`evals/execution-evaluator-prompt.md`. For each target, the validator reads that
+blob and the fixed ordered eight-skill profile from the claimed candidate Git
+tree, reconstructs the exact generated system prompt, and requires byte equality
+with every indexed prompt. A self-consistent caller hash is not provenance. The
+final settled lifecycle must contain exactly one user `message_end`, whose text
+is byte-for-byte the selected committed fixture prompt.
+
 The validator reads every supplied fixture, evaluator, system-prompt, patch, and
 raw-response path and recomputes its SHA-256. Missing or mixed epochs, targets,
 bases, patches, prompts, settings, raw hashes, attempts, or identity fields fail
@@ -122,8 +130,14 @@ Profile observations use one authoritative, strictly ordered, uniquely identifie
 `intermediateClaims`, `sharedContract`, `l3Events`, `materialCauseEvents`,
 `completionClaimed`, `completionAfterL3EventId`, `finalApproval`, `liveEffects`,
 and `finishingEvidenceReused` fields are forbidden. Supported events cover
-contract review, claims, L0, fanout, L1/L2, finalization start, L3, material
-cause, approval, completion, live effect, post-effect smoke, and finishing. Every L3 and finishing event carries
+contract review, claims, L0, fanout, L1/L2, patch apply, commit, patch reverse,
+commit revert, tree restore, finalization start, L3, material cause, approval,
+completion, live effect, post-effect smoke, and finishing. Recovery has no
+parallel booleans or counters: post-apply L1 failure requires ordered
+`apply < failed L1 < reverse current patch < revert prior wave commits < clean
+original tree`; post-commit union-L2 failure requires ordered
+`all wave commits < failed union L2 < revert all wave commits < clean original
+tree` and forbids reverse-apply. Every L3 and finishing event carries
 clean HEAD/tree, exact command-set hash, and non-secret environment-fingerprint
 hash.
 
@@ -142,7 +156,8 @@ Live effects require `L3 < approval < effect < post-effect smoke < completion`.
 Wave tasks use normalized `owns` and `mutableResources`. Ownership accepts exact
 repository-relative paths or a terminal `/**` bounded subtree only; absolute
 paths, parent traversal, and other glob syntax are invalid. Same-wave bounded
-subtrees must not intersect, and exact mutable-resource identities such as
+subtrees must not intersect after conservative case folding, so case-only path
+differences cannot claim disjoint ownership on Windows, and exact mutable-resource identities such as
 ports, databases, caches, services, or temp roots must be unique across tasks.
 Use an explicit empty list when a task owns none.
 
@@ -160,20 +175,28 @@ are regression controls and Lite must keep them green. A profile with no RED
 blocks or remaps that skill change. Missing or falsely normalized observations
 still fail the gate.
 
+## Recovery Branch Coverage Amendment
+
+The final Total Review adds `failed-union-l2` as an eleventh fixture so the
+post-commit recovery branch has independent fresh-context evidence rather than
+sharing the post-apply fixture. This review-driven amendment supersedes every
+earlier fixed ten-fixture/100-record cardinality statement; all provenance,
+manual-inspection, and baseline-RED requirements remain unchanged.
+
 ## Cardinality and Modes
 
-Run ten fixtures, two targets, and repetitions 1 through 5 for a complete
-100-record report. A complete baseline has exactly 50 records. Baseline profile
+Run eleven fixtures, two targets, and repetitions 1 through 5 for a complete
+110-record report. A complete baseline has exactly 55 records. Baseline profile
 results may and usually should fail Lite assertions under the amendment above.
 Every requested Lite profile result must pass its fixture assertion conjunction.
 
 The validator accepts exactly three selection modes:
 
 ```bash
-# Complete 100-record baseline + Lite report
+# Complete 110-record baseline + Lite report
 node scripts/validate-execution-eval-report.mjs .superpowers/evals/epoch-3/final/report.json
 
-# Complete 50-record baseline
+# Complete 55-record baseline
 node scripts/validate-execution-eval-report.mjs \
   .superpowers/evals/epoch-3/task-1-baseline/report.json --target baseline
 

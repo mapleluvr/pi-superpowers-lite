@@ -25,7 +25,9 @@ const SHA256_PATTERN = /^[a-f0-9]{64}$/u;
 const EMPTY_PATCH_SHA256 = createHash("sha256").update("").digest("hex");
 const QUARANTINED_PATH_PATTERN = /(?:^|[\\/])[^\\/]*(?:epoch-[12]|availability-smoke|smoke)[^\\/]*(?:[\\/]|$)/iu;
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const PROFILE_KEYS = new Set([
+const EVALUATOR_PROMPT_RELATIVE_PATH = "evals/execution-evaluator-prompt.md";
+const FIXTURE_RELATIVE_PATH = "evals/execution-cases.json";
+const PROFILE_KEY_LIST = [
   "brainstorming",
   "writing-plans",
   "subagent-driven-development",
@@ -34,7 +36,9 @@ const PROFILE_KEYS = new Set([
   "using-git-worktrees",
   "verification-before-completion",
   "finishing-a-development-branch",
-]);
+];
+const PROFILE_KEYS = new Set(PROFILE_KEY_LIST);
+const PROFILE_SKILL_PATHS = PROFILE_KEY_LIST.map((profile) => `skills/${profile}/SKILL.md`);
 const ASSERTIONS = new Set([
   "no-pre-finalization-l3",
   "disjoint-same-wave-ownership",
@@ -52,6 +56,7 @@ const ASSERTIONS = new Set([
   "l0-frontier-before-work",
   "graphless-single-chain-inline",
   "post-apply-failure-restores-wave-base",
+  "post-commit-l2-failure-restores-wave-base",
   "setup-is-plan-declared-and-non-build-capable",
 ]);
 const EVENT_TYPES = new Set([
@@ -61,6 +66,11 @@ const EVENT_TYPES = new Set([
   "fanout",
   "l1",
   "l2",
+  "patch-applied",
+  "commit",
+  "patch-reversed",
+  "commit-reverted",
+  "tree-restored",
   "finalization-start",
   "l3",
   "material-cause",
@@ -83,8 +93,12 @@ const LEGACY_PROFILE_FIELDS = [
   "finalApproval",
   "liveEffects",
   "finishingEvidenceReused",
+  "failedWaveIntegrationCount",
+  "recovery",
 ];
 const FOCUSED_ACTIONS = new Set(["redesign", "focused-harness", "defer-final-integration"]);
+const TREE_BOUND_INPUT_CACHE = new Map();
+const VALID_GIT_PROVENANCE_CACHE = new Set();
 
 function addError(errors, message) {
   errors.push(message);
@@ -206,17 +220,21 @@ function parseOwnedPath(value) {
   ) {
     return null;
   }
-  return { bounded, path: rawPath };
+  return { bounded, path: rawPath, comparisonPath: rawPath.toLowerCase() };
 }
 
 function ownedPathsIntersect(left, right) {
-  if (!left.bounded && !right.bounded) return left.path === right.path;
+  if (!left.bounded && !right.bounded) return left.comparisonPath === right.comparisonPath;
   if (left.bounded && right.bounded) {
-    return left.path === right.path || left.path.startsWith(`${right.path}/`) || right.path.startsWith(`${left.path}/`);
+    return (
+      left.comparisonPath === right.comparisonPath ||
+      left.comparisonPath.startsWith(`${right.comparisonPath}/`) ||
+      right.comparisonPath.startsWith(`${left.comparisonPath}/`)
+    );
   }
   const bounded = left.bounded ? left : right;
   const exact = left.bounded ? right : left;
-  return exact.path === bounded.path || exact.path.startsWith(`${bounded.path}/`);
+  return exact.comparisonPath === bounded.comparisonPath || exact.comparisonPath.startsWith(`${bounded.comparisonPath}/`);
 }
 
 function disjointOwnership(profileResult) {
@@ -324,12 +342,51 @@ function orderedEvents(profileResult) {
     ) valid = false;
     if (event.type === "l0" && typeof event.passed !== "boolean") valid = false;
     if (event.type === "fanout" && (typeof event.waveId !== "string" || event.waveId.length === 0)) valid = false;
-    if (event.type === "l1" && (typeof event.taskId !== "string" || event.taskId.length === 0 || typeof event.passed !== "boolean")) valid = false;
+    if (
+      event.type === "l1" &&
+      (
+        typeof event.taskId !== "string" ||
+        event.taskId.length === 0 ||
+        typeof event.passed !== "boolean" ||
+        (event.patchAppliedEventId !== undefined && (typeof event.patchAppliedEventId !== "string" || event.patchAppliedEventId.length === 0))
+      )
+    ) valid = false;
     if (
       event.type === "l2" &&
       (
         typeof event.passed !== "boolean" ||
         [event.waveId, event.boundaryId].filter((value) => typeof value === "string" && value.length > 0).length !== 1
+      )
+    ) valid = false;
+    if (
+      event.type === "patch-applied" &&
+      ([event.waveId, event.taskId, event.patchId].some((value) => typeof value !== "string" || value.length === 0))
+    ) valid = false;
+    if (
+      event.type === "commit" &&
+      (
+        [event.waveId, event.taskId, event.patchAppliedEventId].some((value) => typeof value !== "string" || value.length === 0) ||
+        !SHA1_PATTERN.test(event.commitSha ?? "")
+      )
+    ) valid = false;
+    if (
+      event.type === "patch-reversed" &&
+      ([event.waveId, event.patchAppliedEventId].some((value) => typeof value !== "string" || value.length === 0))
+    ) valid = false;
+    if (
+      event.type === "commit-reverted" &&
+      ([event.waveId, event.commitEventId].some((value) => typeof value !== "string" || value.length === 0))
+    ) valid = false;
+    if (
+      event.type === "tree-restored" &&
+      (
+        typeof event.waveId !== "string" ||
+        event.waveId.length === 0 ||
+        !["post-apply-l1", "post-commit-union-l2"].includes(event.branch) ||
+        !SHA1_PATTERN.test(event.expectedTree ?? "") ||
+        event.restoredTree !== event.expectedTree ||
+        event.clean !== true ||
+        event.historyRewritten !== false
       )
     ) valid = false;
     if (
@@ -445,6 +502,110 @@ function passingL2BeforeFinalization(timeline) {
   return l2?.type === "l2" && l2.passed === true && l2.sequence < starts[0].sequence;
 }
 
+function recoveryRestore(timeline, branch) {
+  const restores = timeline.events.filter((event) => event.type === "tree-restored");
+  if (restores.length !== 1 || restores[0].branch !== branch || restores[0].sequence !== timeline.events.at(-1)?.sequence) return null;
+  return restores[0];
+}
+
+function commitsHaveApplyAndPassingL1(timeline, commits, waveId, beforeSequence) {
+  return commits.every((commit) => {
+    const applied = timeline.byId.get(commit.patchAppliedEventId);
+    const passingL1 = timeline.events.find(
+      (event) =>
+        event.type === "l1" &&
+        event.waveId === waveId &&
+        event.taskId === commit.taskId &&
+        event.passed === true &&
+        event.sequence > applied?.sequence &&
+        event.sequence < commit.sequence,
+    );
+    return (
+      applied?.type === "patch-applied" &&
+      applied.waveId === waveId &&
+      applied.taskId === commit.taskId &&
+      commit.waveId === waveId &&
+      commit.sequence < beforeSequence &&
+      Boolean(passingL1)
+    );
+  });
+}
+
+function reversedCommitsExactly(timeline, commits, waveId, afterSequence, beforeSequence) {
+  const reverts = timeline.events.filter((event) => event.type === "commit-reverted");
+  if (reverts.length !== commits.length) return false;
+  const expectedCommitIds = [...commits].sort((left, right) => right.sequence - left.sequence).map((commit) => commit.id);
+  const actualCommitIds = [...reverts].sort((left, right) => left.sequence - right.sequence).map((revert) => revert.commitEventId);
+  return (
+    sameMembers(actualCommitIds, expectedCommitIds) &&
+    new Set(actualCommitIds).size === actualCommitIds.length &&
+    reverts.every((revert) => revert.waveId === waveId && afterSequence < revert.sequence && revert.sequence < beforeSequence)
+  );
+}
+
+function postApplyRecoveryValid(timeline) {
+  const restore = recoveryRestore(timeline, "post-apply-l1");
+  if (!restore) return false;
+  const allowedTypes = new Set(["patch-applied", "l1", "commit", "patch-reversed", "commit-reverted", "tree-restored"]);
+  if (timeline.events.some((event) => !allowedTypes.has(event.type))) return false;
+  const waveId = restore.waveId;
+  const failedL1 = timeline.events.filter((event) => event.type === "l1" && event.passed === false);
+  const reverses = timeline.events.filter((event) => event.type === "patch-reversed");
+  const commits = timeline.events.filter((event) => event.type === "commit");
+  const applies = timeline.events.filter((event) => event.type === "patch-applied");
+  if (failedL1.length !== 1 || reverses.length !== 1 || commits.length === 0 || applies.length !== commits.length + 1) return false;
+  const failed = failedL1[0];
+  const currentApply = timeline.byId.get(failed.patchAppliedEventId);
+  const reverse = reverses[0];
+  if (
+    currentApply?.type !== "patch-applied" ||
+    currentApply.waveId !== waveId ||
+    currentApply.taskId !== failed.taskId ||
+    failed.waveId !== waveId ||
+    reverse.waveId !== waveId ||
+    reverse.patchAppliedEventId !== currentApply.id ||
+    !(currentApply.sequence < failed.sequence && failed.sequence < reverse.sequence)
+  ) return false;
+  const committedApplyIds = commits.map((commit) => commit.patchAppliedEventId);
+  const expectedApplyIds = new Set([...committedApplyIds, currentApply.id]);
+  if (
+    commits.some((commit) => commit.patchAppliedEventId === currentApply.id) ||
+    new Set(committedApplyIds).size !== commits.length ||
+    new Set(commits.map((commit) => commit.commitSha)).size !== commits.length ||
+    expectedApplyIds.size !== applies.length ||
+    applies.some((applied) => !expectedApplyIds.has(applied.id))
+  ) return false;
+  if (!commitsHaveApplyAndPassingL1(timeline, commits, waveId, currentApply.sequence)) return false;
+  return reversedCommitsExactly(timeline, commits, waveId, reverse.sequence, restore.sequence);
+}
+
+function postCommitRecoveryValid(timeline) {
+  const restore = recoveryRestore(timeline, "post-commit-union-l2");
+  if (!restore) return false;
+  const allowedTypes = new Set(["patch-applied", "l1", "commit", "l2", "commit-reverted", "tree-restored"]);
+  if (timeline.events.some((event) => !allowedTypes.has(event.type))) return false;
+  const waveId = restore.waveId;
+  const l2Events = timeline.events.filter((event) => event.type === "l2");
+  const failedL2 = l2Events.filter((event) => event.waveId === waveId && event.passed === false);
+  const commits = timeline.events.filter((event) => event.type === "commit");
+  const applies = timeline.events.filter((event) => event.type === "patch-applied");
+  const committedApplyIds = commits.map((commit) => commit.patchAppliedEventId);
+  if (
+    l2Events.length !== 1 ||
+    failedL2.length !== 1 ||
+    commits.length === 0 ||
+    applies.length !== commits.length ||
+    new Set(committedApplyIds).size !== commits.length ||
+    new Set(commits.map((commit) => commit.commitSha)).size !== commits.length ||
+    applies.some((applied) => !committedApplyIds.includes(applied.id)) ||
+    timeline.events.some((event) => event.type === "l1" && event.passed !== true) ||
+    timeline.events.some((event) => event.type === "patch-reversed")
+  ) return false;
+  const failed = failedL2[0];
+  if (!commitsHaveApplyAndPassingL1(timeline, commits, waveId, failed.sequence)) return false;
+  return reversedCommitsExactly(timeline, commits, waveId, failed.sequence, restore.sequence);
+}
+
 function assertionFailures(assertions, profileResult) {
   const failures = [];
   const timeline = orderedEvents(profileResult);
@@ -501,19 +662,19 @@ function assertionFailures(assertions, profileResult) {
     if (assertion === "native-patch-handoff" && profileResult?.handoffKind !== "patch") {
       failures.push("native isolated writer did not use a patch handoff");
     }
-    if (assertion === "failed-wave-zero-integration" && profileResult?.failedWaveIntegrationCount !== 0) {
-      failures.push("failed wave integrated one or more changes");
+    if (assertion === "failed-wave-zero-integration" && !postApplyRecoveryValid(timeline) && !postCommitRecoveryValid(timeline)) {
+      failures.push("failed wave did not return to its clean original tree through an ordered recovery branch");
     }
-    if (assertion === "post-apply-failure-restores-wave-base") {
-      const recovery = profileResult?.recovery;
-      if (
-        recovery?.currentPatchReversed !== true ||
-        recovery?.priorWaveCommitsReverted !== true ||
-        recovery?.originalTreeRestored !== true ||
-        recovery?.historyRewritten !== false
-      ) {
-        failures.push("post-apply failure did not restore the wave base without rewriting history");
-      }
+    if (assertion === "post-apply-failure-restores-wave-base" && !postApplyRecoveryValid(timeline)) {
+      failures.push("post-apply L1 failure did not reverse the current patch, revert prior commits, and restore the wave base");
+    }
+    if (assertion === "post-commit-l2-failure-restores-wave-base" && !postCommitRecoveryValid(timeline)) {
+      const reversedPatch = eventsOfType("patch-reversed").length > 0;
+      failures.push(
+        reversedPatch
+          ? "post-commit union-L2 recovery must not reverse an already committed patch"
+          : "post-commit union-L2 failure did not revert every wave commit and restore the wave base",
+      );
     }
     if (assertion === "scoped-intermediate-claims") {
       const claims = eventsOfType("claim");
@@ -740,10 +901,11 @@ export function parsePiJsonlResponse(rawResponse) {
   if (finalEnd.willRetry !== false) addError(errors, "final agent_end willRetry must be false");
 
   const lifecycleEvents = events.slice(finalStartIndex + 1, finalEndIndex);
-  const terminalMessage = [...lifecycleEvents].reverse().find((event) => event?.type === "message_end");
+  const terminalMessageIndex = lifecycleEvents.findLastIndex((event) => event?.type === "message_end");
+  const terminalMessage = lifecycleEvents[terminalMessageIndex];
   if (!terminalMessage) {
     addError(errors, "final lifecycle must contain an assistant message_end");
-    return { valid: false, errors, events, text: "" };
+    return { valid: false, errors, events, text: "", userText: "" };
   }
   const message = terminalMessage.message;
   if (message?.role !== "assistant") addError(errors, "terminal message_end must be an assistant message");
@@ -764,7 +926,20 @@ export function parsePiJsonlResponse(rawResponse) {
     .join("");
   if (text.trim().length === 0) addError(errors, "terminal assistant message_end must contain nonempty concatenated text");
 
-  return { valid: errors.length === 0, errors, events, text };
+  const userMessages = lifecycleEvents.slice(0, terminalMessageIndex).filter(
+    (event) => event?.type === "message_end" && event?.message?.role === "user",
+  );
+  const userText = userMessages.length === 1
+    ? array(userMessages[0].message?.content)
+        .filter((block) => block?.type === "text" && typeof block.text === "string")
+        .map((block) => block.text)
+        .join("")
+    : "";
+  if (userMessages.length !== 1 || userText.length === 0) {
+    addError(errors, "final lifecycle must contain exactly one nonempty user message_end before the assistant response");
+  }
+
+  return { valid: errors.length === 0, errors, events, text, userText };
 }
 
 function sha256(value) {
@@ -831,6 +1006,58 @@ function gitOutput(repositoryPath, args, extraEnvironment = {}) {
     env: { ...process.env, ...extraEnvironment },
     stdio: ["ignore", "pipe", "pipe"],
   }).trim();
+}
+
+function gitBlob(repositoryPath, commitSha, relativePath, label, errors) {
+  try {
+    return execFileSync("git", ["show", `${commitSha}:${relativePath}`], {
+      cwd: repositoryPath,
+      encoding: null,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+  } catch (error) {
+    addError(errors, `${label} cannot read ${relativePath} from claimed Git tree: ${error.message}`);
+    return null;
+  }
+}
+
+function deriveTreeBoundInputs(repositoryPath, identity, evidence, errors) {
+  const display = `${identity.target}/${identity.profile}`;
+  const cacheKey = `${repositoryPath}\u0000${identity.candidateInputSha}`;
+  let inputs = TREE_BOUND_INPUT_CACHE.get(cacheKey);
+  if (!inputs) {
+    const evaluatorPrompt = gitBlob(
+      repositoryPath,
+      identity.candidateInputSha,
+      EVALUATOR_PROMPT_RELATIVE_PATH,
+      `${display} canonical evaluator prompt`,
+      errors,
+    );
+    const fixture = gitBlob(repositoryPath, identity.candidateInputSha, FIXTURE_RELATIVE_PATH, `${display} fixture`, errors);
+    const skillBlobs = PROFILE_SKILL_PATHS.map((relativePath) => ({
+      relativePath,
+      bytes: gitBlob(repositoryPath, identity.candidateInputSha, relativePath, `${display} system prompt`, errors),
+    }));
+    if (!evaluatorPrompt || !fixture || skillBlobs.some((entry) => !entry.bytes)) return null;
+    const parts = [evaluatorPrompt];
+    for (const entry of skillBlobs) {
+      parts.push(Buffer.from(`\n\n===== ${entry.relativePath} =====\n\n`), entry.bytes);
+    }
+    parts.push(Buffer.from("\n"));
+    inputs = {
+      evaluatorPromptSha256: sha256(evaluatorPrompt),
+      fixtureSha256: sha256(fixture),
+      systemPrompt: Buffer.concat(parts),
+    };
+    TREE_BOUND_INPUT_CACHE.set(cacheKey, inputs);
+  }
+  if (inputs.evaluatorPromptSha256 !== evidence.evaluatorPromptSha256) {
+    addError(errors, `${display} canonical evaluator prompt does not match the claimed Git tree`);
+  }
+  if (inputs.fixtureSha256 !== evidence.fixtureSha256) {
+    addError(errors, `${display} fixture does not match the claimed Git tree`);
+  }
+  return inputs.systemPrompt;
 }
 
 function validateSourceRepository(evidence, reportRoot, errors) {
@@ -905,8 +1132,12 @@ function validateGlobalEvidence(evidence, reportRoot, errors) {
   validateFixedEvidence(evidence, "report evidence", errors);
   if (!evidence || typeof evidence !== "object") return null;
   const fixturePath = validateEvidencePath(evidence.fixturePath, "fixture", reportRoot, errors);
-  if (fixturePath && fixturePath !== path.join(PACKAGE_ROOT, "evals", "execution-cases.json")) {
+  if (fixturePath && path.resolve(fixturePath) !== path.join(PACKAGE_ROOT, FIXTURE_RELATIVE_PATH)) {
     addError(errors, "fixture path must reference the committed evals/execution-cases.json");
+  }
+  const evaluatorPromptPath = validateEvidencePath(evidence.evaluatorPromptPath, "evaluator prompt", reportRoot, errors);
+  if (evaluatorPromptPath && path.resolve(evaluatorPromptPath) !== path.join(PACKAGE_ROOT, EVALUATOR_PROMPT_RELATIVE_PATH)) {
+    addError(errors, "evaluator prompt path must reference the canonical committed evaluator prompt");
   }
   validateFileHash(evidence.fixturePath, evidence.fixtureSha256, "fixture", reportRoot, errors);
   validateFileHash(evidence.evaluatorPromptPath, evidence.evaluatorPromptSha256, "evaluator prompt", reportRoot, errors);
@@ -916,10 +1147,12 @@ function validateGlobalEvidence(evidence, reportRoot, errors) {
 function validateTargetIdentities(targetIdentities, evidence, reportRoot, sourceRepositoryPath, errors) {
   if (!Array.isArray(targetIdentities)) {
     addError(errors, "targetIdentities must be an array");
-    return { byId: new Map(), byTargetProfile: new Map() };
+    return { byId: new Map(), byTargetProfile: new Map(), expectedSystemPrompts: new Map() };
   }
   const byId = new Map();
   const byTargetProfile = new Map();
+  const expectedSystemPrompts = new Map();
+  const treeInputCache = new Map();
   const validatedProvenance = new Set();
   for (const identity of targetIdentities) {
     const display = `${identity?.target}/${identity?.profile}`;
@@ -963,6 +1196,7 @@ function validateTargetIdentities(targetIdentities, evidence, reportRoot, source
       validateFileHash(identity.patchPath, identity.patchSha256, `${display} patch`, reportRoot, errors);
     }
     const provenanceKey = [
+      sourceRepositoryPath ?? "",
       identity.target,
       identity.sourceBaseSha,
       identity.sourceBaseTree,
@@ -980,10 +1214,28 @@ function validateTargetIdentities(targetIdentities, evidence, reportRoot, source
       SHA1_PATTERN.test(identity.candidateInputTree ?? "")
     ) {
       validatedProvenance.add(provenanceKey);
-      validateGitProvenance(identity, sourceRepositoryPath, reportRoot, errors);
+      if (!VALID_GIT_PROVENANCE_CACHE.has(provenanceKey)) {
+        const errorCountBefore = errors.length;
+        validateGitProvenance(identity, sourceRepositoryPath, reportRoot, errors);
+        if (errors.length === errorCountBefore) VALID_GIT_PROVENANCE_CACHE.add(provenanceKey);
+      }
+    }
+    if (
+      sourceRepositoryPath &&
+      typeof identity.id === "string" &&
+      SHA1_PATTERN.test(identity.candidateInputSha ?? "")
+    ) {
+      if (!treeInputCache.has(identity.candidateInputSha)) {
+        treeInputCache.set(
+          identity.candidateInputSha,
+          deriveTreeBoundInputs(sourceRepositoryPath, identity, evidence, errors),
+        );
+      }
+      const expectedPrompt = treeInputCache.get(identity.candidateInputSha);
+      if (expectedPrompt) expectedSystemPrompts.set(identity.id, expectedPrompt);
     }
   }
-  return { byId, byTargetProfile };
+  return { byId, byTargetProfile, expectedSystemPrompts };
 }
 
 function indexEvidence(entries, kind, reportRoot, errors) {
@@ -1031,6 +1283,7 @@ function validateObservationEvidence({ fixture, result, profilesToValidate, glob
   } else if (observation.fixturePromptSha256 !== expectedFixturePromptHash) {
     addError(errors, `${prefix} fixture prompt hash does not match committed fixture bytes`);
   }
+  let expectedSystemPrompt = null;
   if (!observation.targetIdentityIds || typeof observation.targetIdentityIds !== "object" || Array.isArray(observation.targetIdentityIds)) {
     addError(errors, `${prefix} targetIdentityIds is required`);
   } else {
@@ -1049,6 +1302,14 @@ function validateObservationEvidence({ fixture, result, profilesToValidate, glob
       if (!identity || identity !== expectedIdentity) {
         addError(errors, `${prefix} target identity for ${profileName} is missing or incoherent`);
         continue;
+      }
+      const identityPrompt = identityMaps.expectedSystemPrompts.get(identity.id);
+      if (identityPrompt) {
+        if (expectedSystemPrompt && !expectedSystemPrompt.equals(identityPrompt)) {
+          addError(errors, `${prefix} profile identities derive different system prompts from the claimed Git tree`);
+        } else {
+          expectedSystemPrompt = identityPrompt;
+        }
       }
       for (const [field, label] of identityFields) {
         if (observation[field] === undefined || observation[field] === null || observation[field] === "") {
@@ -1075,6 +1336,21 @@ function validateObservationEvidence({ fixture, result, profilesToValidate, glob
     reportRoot,
     errors,
   );
+  const resolvedSystemPromptPath = validateEvidencePath(
+    observation.generatedSystemPromptPath,
+    `${prefix} generated system prompt`,
+    reportRoot,
+    errors,
+  );
+  if (resolvedSystemPromptPath && expectedSystemPrompt) {
+    try {
+      if (!readFileSync(resolvedSystemPromptPath).equals(expectedSystemPrompt)) {
+        addError(errors, `${prefix} generated system prompt does not equal the tree-derived system prompt from the claimed Git tree`);
+      }
+    } catch (error) {
+      addError(errors, `${prefix} generated system prompt cannot be compared with the claimed Git tree: ${error.message}`);
+    }
+  }
 
   const rawEntry = rawIndex.get(tupleKey);
   if (!rawEntry || rawEntry.path !== observation.rawResponsePath) {
@@ -1096,6 +1372,9 @@ function validateObservationEvidence({ fixture, result, profilesToValidate, glob
       const parsedResponse = parsePiJsonlResponse(readFileSync(resolvedRawPath));
       for (const parserError of parsedResponse.errors) {
         addError(errors, `${prefix} raw response JSONL: ${parserError}`);
+      }
+      if (parsedResponse.valid && parsedResponse.userText !== fixture.prompt) {
+        addError(errors, `${prefix} raw response fixture user prompt does not match the committed fixture prompt`);
       }
     } catch (error) {
       addError(errors, `${prefix} raw response JSONL cannot be read: ${error.message}`);
