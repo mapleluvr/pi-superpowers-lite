@@ -17,10 +17,11 @@ const expected = new Map([
   ["skills/using-git-worktrees/SKILL.md", "e2c3ec142e52868a51af246c620cd76ab648dcf27d6900d47e6ffd07159a9794"],
   ["skills/verification-before-completion/SKILL.md", "ea52d15aabaf72bc6b558efe2c126f161b53961090ddcd712000273bfe8c7b6c"],
   ["skills/finishing-a-development-branch/SKILL.md", "e6d4a812de900d33c6eacfb40747f99427f25c304a7b7099120f9373b115a47f"],
+  ["skills/requesting-code-review/code-reviewer.md", "b2f2ec7596925fe52dac158fdfbca19b3a7d779d619c481e6706a6c0001662d3"],
 ]);
 
 const entries = new Map(manifest.files.map((entry) => [entry.path, entry]));
-assert.equal(expected.size, 11);
+assert.equal(expected.size, 12);
 for (const [path, upstreamHash] of expected) {
   const entry = entries.get(path);
   assert.ok(entry, `manifest must contain ${path}`);
@@ -35,6 +36,13 @@ assert.ok(
   pkg.files.includes("docs/superpowers/specs/2026-07-19-fail-first-wave-execution-design.md"),
   "the incremental design linked by the packaged README must ship",
 );
+assert.ok(
+  pkg.files.includes("docs/superpowers/specs/2026-07-22-review-convergence-design.md"),
+  "the review convergence design linked by the packaged README must ship",
+);
+assert.match(readme, /Review Convergence/);
+assert.match(readme, /one initial pass and one closure pass/);
+assert.match(readme, /acceptance.*protected boundary/i);
 const aggregate = "node tests/execution-contracts/run-all.mjs";
 assert.equal(pkg.scripts.test.split(aggregate).length - 1, 1,
   "package test must register the execution aggregate exactly once");

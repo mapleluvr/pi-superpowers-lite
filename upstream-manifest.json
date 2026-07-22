@@ -76,7 +76,7 @@
     {
       "path": "skills/requesting-code-review/code-reviewer.md",
       "upstreamHash": "b2f2ec7596925fe52dac158fdfbca19b3a7d779d619c481e6706a6c0001662d3",
-      "status": "unchanged"
+      "status": "lite-modified"
     },
     {
       "path": "skills/subagent-driven-development/SKILL.md",

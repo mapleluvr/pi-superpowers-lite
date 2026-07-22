@@ -1,121 +1,88 @@
 ---
 name: requesting-code-review
-description: Use when completing tasks, implementing major features, or before merging to verify work meets requirements
+description: Use when completing risk-gated work, closing reviewer findings, or entering a mandatory final Full review
 ---
 
 # Requesting Code Review
 
-Dispatch a code reviewer subagent to catch issues before they cascade. The reviewer gets precisely crafted context for evaluation — never your session's history. This keeps the reviewer focused on the work product, not your thought process, and preserves your own context for continued work.
+Use independent review as a bounded risk gate, not an open-ended search for possible improvements.
 
-**Core principle:** Review early, review often.
+**Core principle:** one declared review unit, one impact-qualified finding list, one bounded closure.
 
 ## Route-Aware Review
 
 - **Micro:** no independent review. Focused verification is still mandatory.
-- **Standard:** independent review is risk-gated. Request it for shared behavior,
-  broad blast radius, ambiguous acceptance, or evidence that needs a second set
-  of eyes; otherwise implementation self-review plus verification is sufficient.
-- **Full:** a mandatory final whole-change review is required before migration,
-  merge, or release. Add task-level review only at the high-risk boundaries
-  defined by the active execution workflow.
+- **Standard:** use risk-gated review only when shared behavior, broad blast radius, ambiguous acceptance, or sensitive evidence makes independent judgment material.
+- **Full:** keep the mandatory final whole-change review. Add task-level review only for a contract spine or another boundary whose unresolved failure would make dependent work unsafe.
 
-Important findings block progression until fixed or rebutted with concrete
-evidence. A re-review request must identify the new diff, remaining risk, and new evidence
-since the previous verdict; do not ask a reviewer to rediscover them.
+Routine Full tasks use implementation tests, self-review, L1/L2 evidence, and the final review rather than per-task reviewers.
 
-## When to Request Review
+## Review Budget
 
-**Mandatory:**
-- At the final gate for every Full-route change
-- At high-risk task boundaries selected by the Full execution workflow
-- Before a Full change is merged, migrated, or released
+A non-final review unit has at most two review passes:
 
-**Optional but valuable:**
-- For a risk-gated Standard change
-- When stuck (fresh perspective)
-- Before refactoring (baseline check)
-- After fixing a complex bug
+1. **One initial review** against the declared acceptance and protected boundary.
+2. **One closure review** of the initial findings, exact fix diff, and adjacent regression evidence.
 
-## How to Request
+Send one review packet per pass. Do not serially dispatch separate spec, privacy, test-quality, or style reviewers over the same unit. If multiple perspectives are explicitly required, collect them in one bounded pass and synthesize one finding list.
 
-**1. Get git SHAs:**
-```bash
-BASE_SHA="<exact SHA recorded before implementation>"
-HEAD_SHA=$(git rev-parse HEAD)
-```
+After closure, new non-Critical findings not introduced by the fix are deferred to the final review ledger. Reopen the unit only for a demonstrated Critical regression, false evidence behind a disposition, or an explicit route escalation.
 
-For a final review, use the branch starting point (or Git empty tree for root
-history), not a relative one-commit shortcut.
+## Blocking-Finding Contract
 
-**2. Dispatch code reviewer subagent:**
+A finding blocks only when it includes:
 
-Dispatch a `general-purpose` subagent, filling the template at [code-reviewer.md](code-reviewer.md)
+- `Critical` or `Important` severity;
+- an `acceptanceId` or named protected boundary;
+- a concrete failure scenario or reproducible evidence;
+- affected observable behavior, data integrity, security/privacy property, public/shared contract, or irreversible effect;
+- why it cannot be deferred to declared L2, L3, or final review;
+- a bounded remediation target inside current ownership.
 
-**Placeholders:**
-- `{DESCRIPTION}` - Brief summary of what you built
-- `{PLAN_OR_REQUIREMENTS}` - What it should do
-- `{BASE_SHA}` - Starting commit
-- `{HEAD_SHA}` - Ending commit
+`Critical` means an exploitable security/privacy failure, data loss or corruption, duplicate irreversible effect, unrecoverable lifecycle state, or release-blocking public-contract failure.
 
-**3. Act on feedback:**
-- Fix Critical issues immediately
-- Fix Important issues before proceeding
-- Note Minor issues for later
-- Push back if reviewer is wrong (with reasoning)
+`Important` means a material supported-scenario failure, explicit acceptance failure, or recovery/integrity defect that affects users or invalidates a required gate. Test completeness, speculative vectors, preferred refactors, wording, metadata polish, and documentation suggestions are non-blocking unless the reviewer proves that impact contract.
 
-## Example
+Reviewer labels are advisory. The controller owns disposition against the approved spec and records each finding as `fix`, `defer`, or `reject` with technical evidence. Deferring or rejecting an unsupported finding is not skipping verification.
 
-```
-[Just completed Task 2: Add verification function]
+## Re-Review Scope
 
-You: Let me request code review before proceeding.
+A closure request supplies:
 
-BASE_SHA=a7981ec  # exact SHA recorded before Task 2 started
-HEAD_SHA=$(git rev-parse HEAD)
+- initial finding IDs and controller dispositions;
+- exact new diff or changed paths;
+- focused evidence for every accepted fix;
+- adjacent regression evidence, new evidence, and remaining risk.
 
-[Dispatch code reviewer subagent]
-  DESCRIPTION: Added verifyIndex() and repairIndex() with 4 issue types
-  PLAN_OR_REQUIREMENTS: Task 2 from docs/superpowers/plans/deployment-plan.md
-  BASE_SHA: a7981ec
-  HEAD_SHA: 3df7661
+The closure reviewer checks that scope only. It must not rediscover the whole task or add unrelated acceptance requirements. A new finding is admissible only when caused by the fix, Critical, or proof that an earlier disposition relied on false evidence.
 
-[Subagent returns]:
-  Strengths: Clean architecture, real tests
-  Issues:
-    Important: Missing progress indicators
-    Minor: Magic number (100) for reporting interval
-  Assessment: Ready to proceed
+## Review Packet
 
-You: [Fix progress indicators]
-[Continue to Task 3]
-```
+Record exact `BASE_SHA` and `HEAD_SHA`; final review uses the branch start, not a relative one-commit shortcut. Include:
 
-## Integration with Workflows
+- review-unit type: task boundary, contract spine, or final whole change;
+- approved requirement/spec and acceptance IDs;
+- protected boundaries and known risk;
+- diff and L1/L2/L3 evidence appropriate to the gate;
+- pass number: `initial` or `closure`;
+- for closure, the frozen scope above.
 
-**Subagent-Driven Development:**
-- Review high-risk tasks at their boundary
-- Run one mandatory final whole-change review
-- Fix blocking findings before migration or merge
+Use [code-reviewer.md](code-reviewer.md) as the reviewer template.
 
-**Executing Plans:**
-- Review at risk boundaries and at the Full final gate
-- Carry the new diff and evidence into re-review
+## Acting on Feedback
 
-**Ad-Hoc Development:**
-- Follow the active Micro, Standard, or Full route
-- Request review when Standard risk warrants it or when stuck
+1. Reproduce or inspect each proposed blocker.
+2. Map it to the blocking-finding contract.
+3. Record `fix`, `defer`, or `reject` before editing.
+4. Make one consolidated fix wave for accepted blockers.
+5. Run focused evidence, then the single closure review.
 
-## Red Flags
+Critical findings block when confirmed. Only an impact-qualified Important finding may block; severity text alone never does.
 
-**Never:**
-- Skip a review required by the active route or risk boundary
-- Ignore Critical issues
-- Proceed with unfixed Important issues
-- Argue with valid technical feedback
+## Workflow Integration
 
-**If reviewer wrong:**
-- Push back with technical reasoning
-- Show code/tests that prove it works
-- Request clarification
+- **Subagent-Driven Development:** bounded review only at declared risk boundaries; one mandatory final whole-branch review.
+- **Executing Plans:** same budget and frozen closure scope.
+- **Standard:** request review only when its risk gate is actually met.
 
-See template at: [code-reviewer.md](code-reviewer.md)
+Never skip a required final review, ignore a confirmed Critical issue, let a reviewer silently expand acceptance, or start a third non-final review pass to chase non-Critical improvements.

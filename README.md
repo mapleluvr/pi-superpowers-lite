@@ -90,6 +90,12 @@ The package registers one Pi extension and one skill tree. The extension:
 The package does not scan Git checkouts, npm packages, settings, or project
 folders independently.
 
+## Review Convergence
+
+Reviews are bounded risk gates, not open-ended improvement loops. A non-final review unit gets one initial pass and one closure pass, with one review packet per pass. A blocking finding must name an acceptance or protected boundary, show a reproducible failure, identify material behavior/data/security/public-contract impact, and explain why it cannot wait for L2, L3, or final review. Test completeness, speculative vectors, wording, metadata, and style suggestions are deferred unless that impact is demonstrated.
+
+Closure review is limited to the original findings, the fix diff, and adjacent regression evidence. After closure, new non-Critical findings that were not caused by the fix enter the final-review ledger instead of reopening the task. Full work retains one final whole-change review, one consolidated fix wave, and one closure re-review. The design contract is [review convergence](docs/superpowers/specs/2026-07-22-review-convergence-design.md).
+
 ## Verification
 
 ```bash
