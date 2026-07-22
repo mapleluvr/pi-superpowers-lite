@@ -1,38 +1,39 @@
 ---
 name: executing-plans
-description: Use when you have a written implementation plan to execute in a separate session with review checkpoints
+description: Use when approved Full work must execute the current dynamic frontier inline in this session
 ---
 
 # Executing Plans
 
-Execute an approved Full plan inline when delegation is unavailable. Use `subagent-driven-development` for isolated parallel implementation.
+Execute the current Full frontier inline when delegation is unavailable. Use `subagent-driven-development` for isolated parallel implementation.
 
-**Announce:** "I'm using the executing-plans skill to implement this plan."
+**Announce:** "I'm using the executing-plans skill to implement the current frontier."
 
-## Load Once
+## Load Current Frontier
 
-Read the spec, fail-first frontier, selective baseline, finalization, ledger, and execution graph **when present**. Confirm the clean base and branch; require user consent on main/master.
+Read `.superpowers/work/<run-id>/manifest.json`; it must name exactly one current frontier. Load that frontier's `frontier.md`, `frontier.json`, task cards, selective baseline, and finalization state. Confirm authority hashes, clean base, `HEAD`, tree, status, ownership, contract pins, L0/L1/L2 commands, and deferred live effects. Never guess missing interfaces or evidence.
 
-Independent units use a graph. A graphless Full single dependency chain runs in listed order under one writer; do not invent a synthetic DAG. Check ownership, contract pins, L0/L1/L2, and deferred live effects. If a present graph and affected closure contradict, return to plan review. Never guess missing interfaces or evidence.
+## Execute Inline
 
-## Execute Scoped Frontiers
+Run current tasks from `frontier.json` in order, sequentially in one writer:
 
-For a graph plan, process each topological wave. For a graphless single chain, each listed task is the next sequential frontier. In either shape:
+1. Obey each task card's ownership and mutable resources.
+2. Run L0 for the current frontier before any task L1. If L0 fails or is unavailable, stop and block for rederivation.
+3. Preserve TDD RED, implement the task, run exact declared L1, inspect the diff, and commit atomically.
+4. Record only `task-local checks passed`; stop on failure, scope drift, hidden dependency, or contract invalidation.
 
-1. Mark one frontier active and obey its ownership.
-2. Run exact declared L0 before edits or L1. Failed or unavailable L0 stops execution and returns to plan review.
-3. Preserve TDD RED, implement sequentially in one writer, and run exact declared L1.
-4. Inspect, commit atomically, and record only `task-local checks passed`.
-5. Stop on failure, scope drift, or contract invalidation.
+After all current tasks finish, run the terminal frontier L2 exactly once after all current tasks, never between tasks. Report only `affected closure passed`; continue from clean state.
 
-Graph: run **union L2** once after each wave. Graphless: run union L2 exactly once after all listed tasks, never between tasks. Report only `affected closure passed`; continue from clean state.
+For a missing focused command, redesign the unit or boundary, add a focused harness, or defer to final integration. Never substitute a repository-wide suite. No task or intermediate frontier runs L3.
 
-For a missing focused command, redesign the unit or boundary, add a focused harness, or defer to final integration. Never substitute a repository-wide suite. No task or intermediate wave may run L3.
+## Dynamic Recovery
+
+A hidden dependency supersedes the current frontier. A local defect with a valid boundary creates a correction frontier. Two rejected candidates for one frontier due core-contract failure force re-decomposition, a smaller acceptance boundary, or a prior contract/probe frontier before another attempt.
 
 ## Finalization
 
-After all frontiers and L2 pass, run finalization's first repository-wide L3, bind clean state in a valid L3 evidence record, complete mandatory final review, and handle material invalidation as planned. Only then invoke `finishing-a-development-branch`.
+After all frontiers and L2 pass, finalization requires a valid L3 evidence record, mandatory final review, and material-invalidation handling before live effects. Only then invoke `finishing-a-development-branch`.
 
 ## Stop Conditions
 
-Stop for blockers, repeated scoped failure, plan contradiction, ownership collision, unstable contracts, unavailable verification, or decisions requiring approval. Return to plan review or the user instead of widening scope.
+Stop for blockers, repeated scoped failure, ownership collision, stale frontier identity, unstable contracts, unavailable verification, or decisions requiring approval. Return to frontier derivation or the user instead of widening scope.

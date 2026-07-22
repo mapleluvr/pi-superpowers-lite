@@ -1,27 +1,28 @@
 ---
 name: dispatching-parallel-agents
-description: Use when facing 2+ independent tasks that can be worked on without shared state or sequential dependencies
+description: Use when facing 2+ independent domains that can proceed without shared state or sequential dependencies
 ---
 
 # Dispatching Parallel Agents
 
 ## Overview
 
-Dispatch one agent per independent problem domain with a focused, self-contained context. This applies to **investigations or implementation** units, but their isolation and handoff rules differ.
+Dispatch one agent per independent problem domain with focused, self-contained context. This applies to **investigation and implementation** units, but their isolation and handoff rules differ.
 
-**Core principle:** concurrency is earned by proved independence, not by task count.
+**Core principle:** concurrency is earned by proved independence and net benefit, not by task count. If benefit or independence is unclear, choose Inline; Inline fallback is the default.
 
 ## Independence Predicate
 
-Units may share a wave only when all are true:
+Implementation dispatch starts from `.superpowers/work/<run-id>/manifest.json`, its exactly one current frontier, and that frontier's task cards. Units may share a frontier only when all are true:
 
 - they consume the same immutable inputs or pinned contract versions;
-- there is no same-wave dependency path between them;
+- there is no same-frontier dependency path between them;
 - they have disjoint writes or disjoint `owns` paths;
 - mutable resources such as ports, databases, generated files, settings, and fixtures are isolated;
-- one unit can fail without making another unit's output necessary or unsafe.
+- at least two independently useful outcomes can complete without making another output necessary or unsafe;
+- coordination, worktree, patch-admission, and frontier L2 cost is below expected critical-path savings.
 
-If ownership overlaps, contracts are still changing, or resources cannot be isolated, keep the work sequential or redesign the boundary. Do not ask agents to resolve collisions after dispatch.
+If ownership overlaps, contracts are still changing, resources cannot be isolated, or net benefit is weak, keep work sequential or redesign the boundary. Do not ask agents to resolve collisions after dispatch.
 
 ## Mode 1: Read-Only Investigation
 
@@ -29,18 +30,18 @@ Use for independent failures, research questions, or code areas whose conclusion
 
 The controller compares results, resolves contradictions, and decides what work follows. Investigation findings are not implementation patches or approval.
 
-## Mode 2: Full Implementation Wave
+## Mode 2: Full Implementation Frontier
 
-Use only when an approved Full execution graph establishes the predicate above. Each implementation task receives:
+Use only when the current frontier establishes the predicate above. Each implementation task receives:
 
 - frozen base and pinned contract identities;
-- exact `dependsOn`, `owns`, and isolated mutable resources;
-- task-local L1 command and expected evidence;
-- brief/report paths and status vocabulary.
+- `owns`, dependencies, and isolated mutable resources;
+- task card path, task-local L1 command, and expected evidence;
+- report path and status vocabulary.
 
-Dispatch native workers with `worktree: true`. They return a patch handoff and report; they do not merge temporary branches or write canonical state.
+Dispatch native implementation workers with `worktree: true`. They return a patch handoff and report; they do not merge temporary branches or write canonical state.
 
-Delegate complete-set preflight, review, admission, quarantine, and canonical integration to `subagent-driven-development`. Do not duplicate that algorithm here. If any worker fails, blocks, drifts ownership, or lacks evidence, the failed implementation wave integrates zero patches. After successful atomic integration, the controller runs the declared union L2 affected closure. L3 remains finalization-only.
+Delegate complete-set preflight, review, admission, quarantine, and canonical integration to `subagent-driven-development`. Do not duplicate that algorithm here. A failed implementation frontier integrates zero patches. After successful atomic integration, the controller runs the declared frontier L2 affected closure. L3 remains finalization-only.
 
 ## Focused Prompts
 
@@ -55,12 +56,12 @@ A good prompt answers:
 
 ## Dispatch and Collection
 
-Issue independent calls in one parallel group and set a concurrency appropriate to the host. `failFast` can reduce wasted work but never authorizes partial integration.
+Issue independent calls in one parallel group and set concurrency appropriate to the host. `failFast` can reduce wasted work but never authorizes partial integration.
 
 When results return:
 
 - require every expected result and evidence artifact;
-- keep failed or unresolved waves quarantined;
+- keep failed or unresolved frontiers quarantined;
 - synthesize read-only findings in the controller;
 - route implementation patches through SDD admission;
 - report only the verification scope actually established.
