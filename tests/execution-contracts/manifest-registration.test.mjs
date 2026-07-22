@@ -12,6 +12,7 @@ const expected = new Map([
   ["skills/writing-plans/plan-document-reviewer-prompt.md", "aa728b96aad603c8be28875a4305637f6c984aa81ffcadcb13e743202fa2a0c7"],
   ["skills/subagent-driven-development/SKILL.md", "41ab239a6ad1c487cd839fdac972a8c9cf0f5e90efa59a63f963767864f0df4c"],
   ["skills/subagent-driven-development/implementer-prompt.md", "49018b28dc11bc9f3d13a28959bb10ae1a96eabc5d8f19f4079d901f9ff2bf64"],
+  ["skills/subagent-driven-development/task-reviewer-prompt.md", "2eb9d54373420de25bc0bd00635d3a3123a6c0eb30c881168e6f3348e2387331"],
   ["skills/dispatching-parallel-agents/SKILL.md", "f0df13f584049059cc5619f90061405b89dcc6e28ab3f2a8517d27d99c7a46a6"],
   ["skills/executing-plans/SKILL.md", "bbd8d28bb655a52817cc129ce49f9e46fa7c6303f72ed5de95bfe914ef8e0ce8"],
   ["skills/using-git-worktrees/SKILL.md", "e2c3ec142e52868a51af246c620cd76ab648dcf27d6900d47e6ffd07159a9794"],
@@ -21,7 +22,7 @@ const expected = new Map([
 ]);
 
 const entries = new Map(manifest.files.map((entry) => [entry.path, entry]));
-assert.equal(expected.size, 12);
+assert.equal(expected.size, 13);
 for (const [path, upstreamHash] of expected) {
   const entry = entries.get(path);
   assert.ok(entry, `manifest must contain ${path}`);
@@ -40,6 +41,17 @@ assert.ok(
   pkg.files.includes("docs/superpowers/specs/2026-07-22-review-convergence-design.md"),
   "the review convergence design linked by the packaged README must ship",
 );
+assert.ok(
+  pkg.files.includes("docs/superpowers/specs/2026-07-22-progressive-sdd-workspace-design.md"),
+  "the progressive workspace design linked by the packaged README must ship",
+);
+assert.match(readme, /Durable Authority.*Dynamic Frontier/is);
+assert.match(readme, /docs\/superpowers\/work\/<feature>/i);
+assert.match(readme, /\.superpowers\/work\/<run-id>/i);
+assert.match(readme, /current frontier/i);
+assert.match(readme, /net\s+benefit/i);
+assert.match(readme, /legacy.*(?:spec|plan).*compatible|compatible.*legacy.*(?:spec|plan)/is);
+assert.doesNotMatch(readme, /final-review ledger|fix wave|dependency graph with disjoint write sets/i);
 assert.match(readme, /Review Convergence/);
 assert.match(readme, /one initial pass and one closure pass/);
 assert.match(readme, /acceptance.*protected boundary/i);
@@ -48,11 +60,11 @@ assert.equal(pkg.scripts.test.split(aggregate).length - 1, 1,
   "package test must register the execution aggregate exactly once");
 
 assert.match(readme, /docs\/superpowers\/specs\/2026-07-19-fail-first-wave-execution-design\.md/);
-assert.match(readme, /at least two independently mergeable|two or more independently mergeable/i);
-assert.match(readme, /contract spine/i);
-assert.match(readme, /patch (?:handoff|wave)|worktree:\s*true/i);
+assert.match(readme, /at least two independently useful|two or more independently useful/i);
+assert.match(readme, /protected contract|contract spine/i);
+assert.match(readme, /patch handoff|worktree:\s*true/i);
 assert.match(readme, /(?:exact mutable resource identit|mutable resource[\s\S]{0,120}exact identit)/i);
-assert.match(readme, /post-apply L1[\s\S]{0,200}reverse[\s\S]{0,200}union-L2[\s\S]{0,200}(?:without|do not)[\s\S]{0,100}reverse/i);
+assert.match(readme, /post-apply L1[\s\S]{0,220}reverse[\s\S]{0,220}frontier L2[\s\S]{0,220}(?:without|do not)[\s\S]{0,100}reverse/i);
 assert.match(readme, /L0.*L1.*L2.*L3/is);
 assert.match(readme, /finalization-only L3|L3.*only.*finalization/is);
 assert.match(readme, /task-local checks passed/i);
