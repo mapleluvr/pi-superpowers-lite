@@ -24,7 +24,7 @@ Identify the claim's scope and tier before choosing a command:
 | L2 | integrated affected dependency closure | `affected closure passed` |
 | L3 | complete finalization suite | `repository-wide suite passed` |
 
-L1 or L2 evidence must not support "all checks passed," whole-change completion, or a repository-wide claim. Conversely, do not run L3 merely to prove an L1 or L2 claim. The dynamic manifest's finalization gate owns L3.
+L1 or L2 evidence must not support "all checks passed," whole-change completion, or a repository-wide claim. Conversely, do not run L3 merely to prove an L1 or L2 claim. The plan's finalization gate owns L3.
 
 ## Verification Gate
 

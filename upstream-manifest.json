@@ -106,7 +106,7 @@
     {
       "path": "skills/subagent-driven-development/task-reviewer-prompt.md",
       "upstreamHash": "2eb9d54373420de25bc0bd00635d3a3123a6c0eb30c881168e6f3348e2387331",
-      "status": "lite-modified"
+      "status": "unchanged"
     },
     {
       "path": "skills/systematic-debugging/CREATION-LOG.md",

@@ -21,10 +21,6 @@ assert.match(skill, /final fix/i);
 assert.match(skill, /dependenc|build|test|environment/i);
 assert.match(skill, /material cause[\s\S]{0,500}(?:focused|scoped)[\s\S]{0,120}L1\/L2[\s\S]{0,300}(?:new|changed|repaired)[\s\S]{0,120}clean[\s\S]{0,80}L3/i,
   "material repairs must pass focused L1/L2 before replacement L3");
-assert.match(skill, /current frontier|frontier-declared/i,
-  "material-repair evidence must come from the current frontier");
-assert.doesNotMatch(skill, /plan-declared|approved plan/i,
-  "branch finishing must not depend on a static plan");
 assert.match(skill, /read-only review.*(?:does not|doesn't).*invalid/is,
   "read-only review must preserve matching evidence");
 assert.match(skill, /merged (?:target|result).*(?:run|rerun).*L3|(?:run|rerun).*L3.*merged (?:target|result)/is,

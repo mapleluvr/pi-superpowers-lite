@@ -39,7 +39,5 @@ assert.match(dispatch, /net benefit[\s\S]{0,180}(?:Inline fallback|fallback to I
 
 assert.doesNotMatch(executionText, /\[BRIEF_FILE\]|task brief|authority brief|scripts\/task-brief|scripts\/review-package|\.superpowers\/sdd\/progress\.md|duplicate progress ledger/i,
   "execution consumers must not reference legacy brief helpers or duplicate ledgers");
-assert.doesNotMatch(sdd, /fix wave|final-review ledger/i,
-  "SDD finalization must use correction frontiers and manifest risk rather than old wave/ledger artifacts");
 
 console.log("progressive execution consumer contract checks passed");

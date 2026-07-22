@@ -1,6 +1,6 @@
 ---
 name: using-git-worktrees
-description: Use when a current frontier needs isolation from the active workspace - ensures an isolated workspace exists via native tools or git worktree fallback
+description: Use when starting feature work that needs isolation from current workspace or before executing implementation plans - ensures an isolated workspace exists via native tools or git worktree fallback
 ---
 
 # Using Git Worktrees
@@ -101,7 +101,7 @@ cd "$path"
 
 ## Step 2: Project Setup
 
-Do not infer or run setup from marker files. Use only the current frontier's exact **frontier-declared dependency-only** setup, and record its command and purpose. Lifecycle hooks or scripts must be disabled or suppressed where the ecosystem permits; for example, a frontier may use `npm ci --ignore-scripts`, `cargo fetch`, or `go mod download`.
+Do not infer or run setup from marker files. Use only the approved plan's exact **plan-declared dependency-only** setup, and record its command and purpose. Lifecycle hooks or scripts must be disabled or suppressed where the ecosystem permits; for example, a plan may use `npm ci --ignore-scripts`, `cargo fetch`, or `go mod download`.
 
 Setup is not verification. If a command can build project code, execute lifecycle hooks, run tests, migrate data, or affect external state, it must be an explicit scoped L1/L2 command or be deferred to finalization L3. An unclassified or build-capable setup command blocks implementation until the plan supplies a safe boundary.
 
@@ -109,7 +109,7 @@ Setup is not verification. If a command can build project code, execute lifecycl
 
 Before edits, record the **frozen base SHA**, branch, and clean status. Record available CI status for that SHA; when no trustworthy CI result is available, write `CI status: unknown`, never green.
 
-Run only the current frontier's declared L0-L2 commands and preserve their exact output as the **selective baseline**. State the affected paths/contracts and claim only that scope. This is not a globally clean baseline and must never be described as globally clean.
+Run only the plan-declared L0-L2 commands and preserve their exact output as the **selective baseline**. State the affected paths/contracts and claim only that scope. This is not a globally clean baseline and must never be described as globally clean.
 
 If the plan lacks a trustworthy focused command, redesign the unit or boundary, add a focused harness, or defer it to final integration. Do not substitute a repository-wide suite.
 
@@ -145,5 +145,5 @@ Scope: <paths/contracts; not globally clean>
 - Prefer native tools over git fallback
 - Follow directory priority: explicit instructions > existing project-local directory > default
 - Verify directory is ignored for project-local
-- Run only frontier-declared dependency-only setup with lifecycle execution suppressed
+- Run only plan-declared dependency-only setup with lifecycle execution suppressed
 - Record frozen SHA, CI status, and exact selective baseline scope
