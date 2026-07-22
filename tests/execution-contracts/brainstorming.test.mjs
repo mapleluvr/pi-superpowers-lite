@@ -4,50 +4,45 @@ import { readRepoFile, wordCount } from "../helpers/skill-contract.mjs";
 const skill = readRepoFile("skills/brainstorming/SKILL.md");
 const reviewer = readRepoFile("skills/brainstorming/spec-document-reviewer-prompt.md");
 
-assert.match(skill, /two or more independently (?:mergeable|executable) units/i,
-  "parallel-wave design must be conditional on at least two independent units");
-assert.match(skill, /single (?:dependency chain|sequential chain).*does not require|do not force.*single (?:dependency chain|sequential chain)/is,
-  "a single dependency chain must not require DAG ceremony");
-assert.match(skill, /transactional invariant.*(?:one unit|together|do not split)/is,
-  "transactional invariants must not be split artificially");
-
-for (const field of [
-  "responsibility",
-  "owns",
-  "contract",
-  "produces",
-  "consumes",
-  "mutable resources",
-  "focused verification",
-  "reversibility",
+assert.match(skill, /docs\/superpowers\/work\/<feature>/i,
+  "Full design must use one feature authority directory");
+for (const artifact of ["README.md", "intent.md", "contracts/", "decisions/"]) {
+  assert.match(skill, new RegExp(artifact.replace(/[./]/g, "\\$&"), "i"),
+    `authority structure must explain ${artifact}`);
+}
+for (const authority of [
+  /acceptance.*stable (?:ID|identifier)/i,
+  /hard constraints?/i,
+  /non-goals?/i,
+  /protected invariants?/i,
+  /live or destructive effects?|destructive or live effects?/i,
 ]) {
-  assert.match(skill, new RegExp(field, "i"), `boundary map must include ${field}`);
+  assert.match(skill, authority, `minimal intent must contain ${authority}`);
 }
+assert.match(skill, /contracts?.*(?:only|when).*(?:public|shared|security|migration|concurrency)/is,
+  "contract documents must be risk-triggered rather than universal");
+assert.match(skill, /do not include|exclude/i,
+  "the skill must define a subtractive durable-authority boundary");
+for (const excluded of ["task lists", "DAGs", "waves", "implementation paths", "model/reviewer allocation"]) {
+  assert.match(skill, new RegExp(excluded.replace("/", "\\/"), "i"),
+    `durable intent must exclude ${excluded}`);
+}
+assert.doesNotMatch(skill, /include a boundary map before approval/i,
+  "durable specs must not require a complete implementation-unit boundary map");
+assert.match(skill, /writing-plans.*(?:initialize|create).*(?:ignored|\.superpowers\/work).*current frontier/is,
+  "approved authority must hand off to dynamic workspace initialization");
 
-assert.match(skill, /fail-first (?:architecture\/probe )?frontier/i,
-  "design must name a fail-first frontier");
-assert.match(skill, /before (?:broad|wider) implementation|before fan-out/i,
-  "the fail-first frontier must run before broad implementation");
-for (const boundary of ["public/shared", "security", "migration", "concurrency"]) {
-  assert.match(skill, new RegExp(boundary, "i"), `contract spine must cover ${boundary} boundaries`);
-}
-for (const action of ["reviewed", "pinned", "invalidat"] ) {
-  assert.match(skill, new RegExp(action, "i"), `contract spine must be ${action}`);
-}
-assert.match(skill, /additive or compatibility (?:phase|path)/i,
-  "destructive transitions must use additive or compatibility phases");
-assert.match(skill, /(?:live )?cutover.*finalization|finalization.*(?:live )?cutover/is,
-  "live cutover must wait for finalization");
-
-for (const rejection of [
-  /artificial decomposition/i,
-  /unstable.*fan-out|fan-out.*unstable/is,
-  /missing.*fail-first/i,
-  /destructive intermediate/i,
-  /missing.*selective verification/i,
+for (const check of [
+  /observable outcome/i,
+  /stable acceptance (?:ID|identifier)|acceptance.*stable/i,
+  /protected invariant/i,
+  /implementation (?:task|DAG|wave|path).*(?:leak|detail)|(?:task|DAG|wave).*(?:not belong|exclude)/is,
+  /contract.*(?:necessary|public|shared|security|migration|concurrency)/is,
 ]) {
-  assert.match(reviewer, rejection, `spec reviewer must reject ${rejection}`);
+  assert.match(reviewer, check, `authority reviewer must check ${check}`);
 }
+assert.doesNotMatch(reviewer, /missing path ownership/i,
+  "authority review must not demand derived task ownership");
 
 assert.ok(wordCount(skill) <= 1574, "brainstorming must not exceed its baseline word count");
 assert.ok(wordCount(reviewer) <= 235, "spec reviewer prompt must not exceed its baseline word count");

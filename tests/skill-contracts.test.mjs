@@ -104,9 +104,10 @@ if (!ROUTER_ONLY) {
     "<HARD-GATE>",
     "This applies to EVERY project regardless of perceived simplicity.",
     "## Checklist",
-    "Write design doc",
-    "User reviews written spec",
+    "Write durable authority",
+    "User reviews written authority",
     "The terminal state is invoking writing-plans.",
+    "docs/superpowers/work/<feature>/",
   ]) {
     assert.ok(brainstorming.body.includes(anchor), `brainstorming must retain ${anchor}`);
   }
@@ -114,19 +115,18 @@ if (!ROUTER_ONLY) {
   const writingPlans = splitFrontmatter(readSkill("writing-plans"));
   assert.match(writingPlans.frontmatter, /Full-route work/i, "writing-plans must be Full-only");
   for (const anchor of [
-    "Purpose and observable outcome",
-    "Files/modules and ownership boundary",
-    "Interfaces and cross-task dependencies",
-    "Constraints and invariants",
-    "Acceptance evidence",
-    "Risk and rollback",
+    ".superpowers/work/<run-id>/",
+    "manifest.json",
+    "frontier.md",
+    "frontier.json",
+    "task card",
+    "selective baseline",
+    "Self-Review",
   ]) {
     assert.ok(writingPlans.body.includes(anchor), `writing-plans must retain ${anchor}`);
   }
-  assert.match(writingPlans.body, /Pseudocode only for fragile or non-obvious logic/i);
-  assert.match(writingPlans.body, /do not copy full function bodies/i);
-  assert.match(writingPlans.body, /durable plan/i);
-  assert.match(writingPlans.body, /Self-Review/i);
+  assert.doesNotMatch(writingPlans.body, /durable plan/i);
+  assert.doesNotMatch(writingPlans.body, /Save plans to:/i);
 
   const systematicDebugging = splitFrontmatter(readSkill("systematic-debugging"));
   assert.ok(systematicDebugging.body.includes("## Deterministic Short Path"));

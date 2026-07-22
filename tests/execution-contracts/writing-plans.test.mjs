@@ -4,52 +4,58 @@ import { readRepoFile, wordCount } from "../helpers/skill-contract.mjs";
 const skill = readRepoFile("skills/writing-plans/SKILL.md");
 const reviewer = readRepoFile("skills/writing-plans/plan-document-reviewer-prompt.md");
 
-assert.match(skill, /two or more independently mergeable (?:implementation )?units/i,
-  "execution graphs must be conditional on parallelizable Full work");
-assert.match(skill, /single (?:dependency|sequential) chain.*(?:serial|no DAG)|(?:no DAG|serial).*single (?:dependency|sequential) chain/is,
-  "single-chain Full work must remain serial without DAG ceremony");
-
-for (const field of ["task", "wave", "dependsOn", "owns", "mutableResources", "produces", "consumes", "risk", "L1", "L2"]) {
-  assert.match(skill, new RegExp(`\\b${field}\\b`, "i"), `execution graph must define ${field}`);
+assert.match(skill, /\.superpowers\/work\/<run-id>/i,
+  "writing-plans must initialize the ignored run workspace");
+for (const artifact of ["manifest.json", "frontier.md", "frontier.json", "task card"]) {
+  assert.match(skill, new RegExp(artifact.replace(".", "\\."), "i"),
+    `workspace initialization must produce ${artifact}`);
 }
+assert.match(skill, /Git-ignored|ignored workspace/i,
+  "derived execution state must remain Git-ignored");
+assert.match(skill, /does not|do not|never/i,
+  "the skill must explicitly bound derived planning");
+assert.doesNotMatch(skill, /Save plans to:/i,
+  "writing-plans must not require a committed static plan");
+assert.match(skill, /(?:inspect|read).*(?:current )?code.*tests?|tests?.*(?:inspect|read).*(?:current )?code/is,
+  "frontier selection must follow current-code inspection");
+assert.match(skill, /selective baseline/i,
+  "workspace initialization must record a selective baseline");
+assert.match(skill, /highest-value.*earliest verifiable frontier|earliest verifiable.*highest-value/is,
+  "planning must select the nearest high-value frontier");
+assert.match(skill, /current frontier/i,
+  "planning scope must be the current frontier");
+assert.match(skill, /does not.{0,100}(?:promise|precompute)|do not.{0,100}(?:promise|precompute)/i,
+  "writing-plans must not predict the full task graph");
+assert.match(skill, /task count|later (?:tasks|waves|frontiers)/i,
+  "the non-prediction rule must cover later work");
 
-for (const requirement of [
-  /fail-first frontier/i,
-  /base SHA/i,
-  /CI status/i,
-  /selective baseline/i,
-  /reverse consumers/i,
-  /shared (?:build|configuration|config).*surfaces/is,
-  /exact commands? and filters?/i,
-  /exclusion rationale/i,
+for (const factor of [
+  /disjoint.*(?:writes|paths).*mutable resources|mutable resources.*disjoint/is,
+  /stable.*interfaces?|contract spine/i,
+  /focused L1/i,
+  /critical path/i,
+  /coordination.*cost|worktree.*cost|patch-admission.*cost/is,
 ]) {
-  assert.match(skill, requirement, `plan must define ${requirement}`);
+  assert.match(skill, factor, `parallel net-benefit decision must consider ${factor}`);
 }
+assert.match(skill, /(?:unclear|not clear).*(?:Inline|serial)|(?:Inline|serial).*(?:unclear|not clear)/is,
+  "uncertain parallel benefit must fall back to Inline");
+assert.match(skill, /qualitative.*(?:rationale|decision)|(?:rationale|decision).*qualitative/is,
+  "parallel choice must use qualitative rationale rather than a score");
+assert.match(skill, /sole.*(?:worker|task-specific).*(?:instruction|authority)|task card.*sole/is,
+  "one task card must be the only task-specific worker authority");
 
-assert.match(skill, /mutableResources.*(?:database|port|cache|service|temp)|(?:database|port|cache|service|temp).*mutableResources/is,
-  "plans must assign exact mutable resource identities");
-assert.match(skill, /Task Structure[\s\S]*Mutable resources:/i,
-  "each task brief must carry mutable resource ownership");
-assert.match(skill, /redesign.*(?:unit|boundary)|focused harness|defer.*final integration/is,
-  "missing focused verification must redesign, add a harness, or defer integration");
-assert.match(skill, /L3.*finalization|finalization.*L3/is,
-  "L3 must be owned by finalization");
-assert.match(skill, /No implementation task may contain an L3 command/i,
-  "implementation tasks must prohibit L3 commands");
-assert.doesNotMatch(skill, /Regression: `exact broader command`/,
-  "task templates must not imply a broader suite after each task");
-
-for (const rejection of [
-  /overlap/i,
-  /dependency violation/i,
-  /missing patch ownership/i,
-  /early L3/i,
-  /fake affected closure/i,
+for (const check of [
+  /authority.*(?:commit|hash)/is,
+  /exactly one current frontier|one current frontier/i,
+  /later (?:task|wave|frontier).*(?:predicted|precomputed)|static.*(?:DAG|graph)/is,
+  /parallel.*(?:independence|net benefit)/is,
+  /L3.*finalization|finalization.*L3/is,
 ]) {
-  assert.match(reviewer, rejection, `plan reviewer must reject ${rejection}`);
+  assert.match(reviewer, check, `frontier reviewer must check ${check}`);
 }
 
 assert.ok(wordCount(skill) <= 1096, "writing-plans must not exceed its baseline word count");
-assert.ok(wordCount(reviewer) <= 235, "plan reviewer prompt must not exceed its baseline word count");
+assert.ok(wordCount(reviewer) <= 235, "frontier reviewer prompt must not exceed its baseline word count");
 
 console.log("writing-plans execution contract checks passed");

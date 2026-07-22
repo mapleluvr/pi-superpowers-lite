@@ -52,7 +52,7 @@ Use Full when any condition applies:
 - Independent tasks, parallel work, or subagent collaboration are required.
 - The user explicitly requests Full.
 
-Load the Full workflow skills: brainstorming, written spec, intent-level plan, isolated execution, proportional review, final whole-change review, and branch finish. Use a worktree unless already isolated.
+Load the Full workflow skills: brainstorming creates approved durable authority under `docs/superpowers/work/<feature>/`; writing-plans initializes only the current dynamic workspace/frontier under `.superpowers/work/<run-id>/`; then use Inline or isolated SDD execution, proportional review, final whole-change review, and branch finish. Use a worktree only when the chosen frontier benefits from isolation.
 
 ## Override And Escalation
 

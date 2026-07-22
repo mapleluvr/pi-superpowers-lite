@@ -1,24 +1,24 @@
-# Plan Document Reviewer Prompt Template
+# Current Frontier Review Prompt
 
-Use after a Full implementation plan is written.
+Routine frontiers use controller self-review. Use an independent reviewer only when a protected-boundary readiness decision already has review budget; the call counts as a review pass.
 
 ```text
-Review [PLAN_FILE_PATH] against [SPEC_FILE_PATH] read-only. Approve unless a defect can make execution wrong, unsafe, or blocked.
+Review [RUN_MANIFEST] and its current frontier read-only against [AUTHORITY_DIR]. Do not plan later work.
 
-Check spec coverage, placeholders, exact ownership, interfaces, commands, and rollback. For a graph plan, block on:
-- same-wave path or mutable-resource overlap;
-- a dependency violation inside a wave;
-- missing patch ownership or canonical integrator;
-- artificial decomposition of one transactional invariant;
-- missing or unpassed fail-first frontier;
-- L2 without reverse consumers, shared surfaces, exact filters, or exclusion rationale;
-- a fake affected closure that is actually repository-wide;
-- early L3 in an implementation task or wave;
-- missing finalization preconditions, evidence record, or final review.
+Block only when:
+- the authority commit/hash is missing, stale, or unapproved;
+- manifest does not identify exactly one current frontier;
+- current ownership or mutable resources overlap;
+- a mandatory acceptance/path lacks an owner, real entry point, or focused command;
+- Parallel lacks demonstrated independence or net benefit;
+- a static DAG predicts later tasks/waves/frontiers;
+- derived state changes durable authority;
+- L2 is fake affected closure or L3 appears before finalization;
+- a hidden dependency, placeholder, or invalidation is ignored.
 
 Output:
-## Plan Review
+## Frontier Review
 **Status:** Approved | Issues Found
-**Issues:** [task/section, defect, execution consequence]
+**Issues:** [acceptance ID/task, defect, execution consequence]
 **Recommendations:** [non-blocking only]
 ```

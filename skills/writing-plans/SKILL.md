@@ -1,137 +1,101 @@
 ---
 name: writing-plans
-description: Use for Full-route work after an approved spec, before implementation begins
+description: Use for Full-route work after durable authority is approved and before implementation begins
 ---
 
-# Writing Plans
+# Initializing a Progressive Execution Workspace
 
 ## Overview
 
-Write a durable plan for Full-route work after the design is approved. Give a capable engineer enough context to preserve intent, interfaces, invariants, and evidence without repeating the spec or pre-writing routine implementation.
+Turn approved durable authority into the highest-value earliest verifiable frontier. Inspect current code first; write derived runtime state, not a second durable specification.
 
-Assume the executor has no session history. Reference the approved spec for WHAT and WHY, name exact ownership boundaries, and make risky decisions explicit. DRY. YAGNI. TDD. Reviewable commits.
+**Announce at start:** "I'm using writing-plans to initialize the current execution frontier."
 
-**Announce at start:** "I'm using the writing-plans skill to create the implementation plan."
+Create a Git-ignored workspace at `.superpowers/work/<run-id>/`. Do not write or commit a static implementation plan, promise a task count, or precompute later tasks, waves, or frontiers.
 
-**Save plans to:** `docs/superpowers/plans/YYYY-MM-DD-<feature-name>.md` unless the user chooses another path.
+## Inputs and L0
 
-## Intent-Level Content
+Read the authority index, `intent.md`, and only relevant protected contracts. Bind their approved commit and hashes. Inspect current code and tests, confirm the clean base, and record available CI status plus exact focused results as a **selective baseline**. `unknown` is an honest CI value.
 
-Every task states:
+If authority is unapproved, inconsistent, or changed from the bound hash, stop. Derived execution state must not override or change durable authority. A product or protected-contract change returns for amendment; task decomposition does not amend authority.
 
-```text
-Purpose and observable outcome
-Files/modules and ownership boundary
-Exact mutable-resource ownership
-Interfaces and cross-task dependencies
-Constraints and invariants
-Acceptance evidence
-Risk and rollback
-Pseudocode only for fragile or non-obvious logic
-```
-
-Ordinary steps do not copy full function bodies, complete test files, or repeated TDD narration. Use exact snippets only for migrations, destructive operations, protocol boundaries, fragile configuration, or genuinely non-obvious algorithms.
-
-## Choose the Plan Shape
-
-Use an execution graph only when a cohesive Full objective contains **two or more independently mergeable implementation units**. A single dependency chain stays serial and needs no DAG ceremony. Keep one transactional invariant under one owner rather than splitting it artificially.
-
-Before tasks, record:
-
-- approved spec path and immutable version or hash;
-- file/contract ownership map;
-- base SHA, available CI status (`unknown` is valid), and exact L0-L2 results labeled **selective baseline**;
-- a named **fail-first frontier** that must pass before broad implementation;
-- finalization preconditions and rollback boundary.
-
-## Execution Graph
-
-For qualifying work, include one table with every field:
+## Workspace
 
 ```text
-task | wave | dependsOn | owns | mutableResources | produces | consumes | risk | L1 | L2
+.superpowers/work/<run-id>/
+  manifest.json
+  frontiers/
+    F001-<slug>/
+      frontier.md
+      frontier.json
+      tasks/
+        T001.md
+      handoffs/
+      evidence/
+        l0/
+        l1/
+        l2/
+  finalization/
+    evidence/
+    reviews/
 ```
 
-Same-wave tasks must have no dependency path between them, disjoint `owns` paths, and disjoint `mutableResources` identities. List exact databases, ports, caches, services, temp roots, and other process-global resources; `none` is explicit. Do not hide resource allocation in implementation prose. Put a shared contract-spine task in an earlier wave and pin its reviewed contract before consumers fan out. Assign one canonical integrator; isolated writers return patches, and the plan names patch ownership.
+`manifest.json` is the sole runtime entry point. Record run/authority/base identity, exactly one current frontier, historical completed/blocked/superseded frontiers, canonical state, protected risks, and finalization status. Do not create a duplicate progress file.
 
-For each wave, derive L2 from the affected closure. Name reverse consumers, shared build/configuration surfaces, exact commands and filters, and an exclusion rationale for omitted surfaces. If no trustworthy focused command exists, redesign the unit or boundary, add a focused harness, or defer that unit to final integration. Never relabel a repository-wide suite as L2.
+## Select the Current Frontier
 
-## Plan Header
+Choose the smallest boundary that is both high value and independently verifiable now. `frontier.md` answers:
 
-```markdown
-# [Feature Name] Implementation Plan
+1. Why now?
+2. What observable boundary closes?
+3. What assumptions must L0 disprove?
+4. Inline or Parallel, and why?
+5. What ends or invalidates this frontier?
 
-> **For agentic workers:** Use subagent-driven-development or executing-plans. Track steps with checkboxes.
+`frontier.json` records base/authority identity, mode, task cards, ownership and mutable resources, exact L0/L1/L2, acceptance mappings, status, and invalidation reason. It contains no later frontier.
 
-**Goal:** [observable result]
-**Architecture:** [approach and boundaries]
-**Tech Stack:** [technologies]
-**Approved spec:** [path and immutable identity]
+## Decide Inline or Parallel
 
-## Global Constraints
-[exact shared requirements]
+Parallel requires current evidence of:
+
+- two or more independently useful outcomes;
+- disjoint writes and mutable resources;
+- stable interfaces or a completed contract spine;
+- independent focused L1 checks;
+- material critical path reduction;
+- coordination cost, worktree cost, patch-admission cost, and union-L2 cost below expected savings.
+
+Record a qualitative decision and rationale, never a numeric score. When independence or benefit is unclear, choose Inline. Do not split one transactional invariant or manufacture a DAG.
+
+## Task Card
+
+The task card is the sole task-specific worker instruction. It records:
+
+```text
+Observable outcome
+Frozen base
+Authority and contract hashes
+Owned paths
+Actual mutable resources
+Consumes and produces
+Controller-passed L0
+Exact L1
+Stop conditions
+Handoff path
 ```
 
-## Task Structure
+Do not copy the full authority or historical corrections. A hidden dependency returns `NEEDS_CONTEXT`; it does not widen ownership.
 
-````markdown
-### Task N: [Observable outcome]
+Before dispatch, verify references/hashes, one owner per mandatory path, no parallel path/resource overlap, focused L1 for each task, and a real entry point or controller-owned probe for each protected acceptance. Worker self-report is not this proof.
 
-**Purpose:** [result]
+## Evidence and Finalization Boundary
 
-**Files/modules and ownership boundary:**
-- Create/Modify/Test: `exact/path`
-
-**Interfaces and cross-task dependencies:**
-- Consumes: [stable contract]
-- Produces: [stable contract]
-
-**Mutable resources:**
-- `mutableResources`: [exact database/port/cache/service/temp identity, or `none`]
-
-**Constraints and invariants:**
-- [binding requirement]
-
-**Acceptance evidence:**
-- L0: `cheapest structural command` -> [expected evidence]
-- L1 RED: `exact focused command` -> [intended failure]
-- L1 GREEN: `same exact command` -> [pass]
-- L2 after integration: [wave-owned affected-closure command]
-
-**Risk and rollback:** [boundary and reversal]
-
-**Implementation intent:**
-- [ordered ownership-level changes]
-- [pseudocode only where needed]
-
-**Commit:**
-```bash
-git add exact/owned/paths
-git commit -m "feat: add observable outcome"
-```
-````
-
-No implementation task may contain an L3 command. Stop on graph, ownership, or closure contradictions and return to plan review instead of guessing.
-
-## Finalization
-
-Create one finalization section after all implementation waves. It owns the first repository-wide L3 and lists:
-
-- required clean integrated state and completed L1/L2 evidence;
-- exact complete L3 commands;
-- evidence-record fields binding results to clean HEAD, commands, tool/runtime versions, and relevant non-secret external-input hashes;
-- mandatory final whole-change review;
-- material invalidation and L3/re-review rules;
-- live-effect or destructive cutover only after passing L3 and final approval.
-
-## No Placeholders
-
-Reject TODO/TBD text, vague validation, unnamed edge cases, undefined interfaces, "similar to Task N," or fragile logic without pseudocode. Every command names expected evidence.
+Default to one structured record for each L0, task L1, frontier L2, and final L3 gate. Raw output is optional unless diagnostic or contractually required. No task or frontier runs repository-wide L3; L3 remains finalization-only.
 
 ## Self-Review
 
-Check spec coverage, placeholder absence, field/type consistency, graph legality, complete path and mutable-resource ownership, honest L2 derivation, and finalization-only L3. Fix defects inline before handoff.
+Check authority identity, exactly one current frontier, no predicted static graph, complete current ownership/resource mapping, honest parallel independence and net benefit, exact focused commands, no placeholders, and finalization-only L3. Fix derived-state defects inline; return authority defects to the user.
 
-## Execution Handoff
+## Handoff
 
-Offer either **Subagent-Driven** execution with subagent-driven-development or **Inline Execution** with executing-plans. Follow the user's choice; both consume the same graph, evidence tiers, and finalization gate.
+Offer SDD for a genuinely profitable independent Parallel frontier or `executing-plans` for Inline. Both consume the same manifest, frontier, task card, and evidence scopes. After completion the controller inspects the new canonical state and derives the next frontier.

@@ -1,22 +1,24 @@
-# Spec Document Reviewer Prompt Template
+# Durable Authority Review Prompt
 
-Use after a Full spec is written and before planning.
+Use only when a protected authority or contract has a risk-triggered independent review budget. Routine authority receives inline self-review and user approval.
 
 ```text
-Review [SPEC_FILE_PATH] read-only. Approve unless a defect can cause the plan or implementation to be wrong.
+Review [AUTHORITY_DIR] read-only against the user's approved decisions. Do not design implementation tasks.
 
-Block on:
-- TODOs, contradictions, ambiguous requirements, or unrequested scope;
-- artificial decomposition or a split transactional invariant;
-- unstable fan-out contracts, missing producer/consumer or ownership boundaries;
-- a missing fail-first frontier before broad implementation;
-- public/shared, security, migration, or concurrency contracts not reviewed and pinned;
-- destructive intermediate states without an additive or compatibility phase;
-- missing selective verification surfaces or reversibility.
+Block only when:
+- intent lacks a user-observable outcome;
+- acceptance lacks a stable ID or is not observable;
+- hard constraints, non-goals, or protected invariants conflict or remain ambiguous;
+- implementation task/DAG/wave/path details leak into durable authority;
+- a contract is unnecessary, or a necessary public/shared, security, migration, data, or concurrency contract is absent or ambiguous;
+- live/destructive authorization or compatibility is unsafe;
+- placeholders or unrequested scope can make implementation wrong.
+
+Do not require derived path ownership, task boundaries, parallelism, or verification commands.
 
 Output:
-## Spec Review
+## Authority Review
 **Status:** Approved | Issues Found
-**Issues:** [section, defect, implementation consequence]
+**Issues:** [acceptance ID or protected boundary, defect, observable consequence]
 **Recommendations:** [non-blocking only]
 ```
