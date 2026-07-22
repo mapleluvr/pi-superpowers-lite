@@ -5,8 +5,12 @@ const skill = readRepoFile("skills/executing-plans/SKILL.md");
 
 assert.match(skill, /\.superpowers\/work\/<run-id>\/manifest\.json/i,
   "inline execution must start from the dynamic run manifest");
-assert.match(skill, /manifest\.json[\s\S]{0,220}exactly one current frontier|exactly one current frontier[\s\S]{0,220}manifest\.json/i,
-  "inline execution must load exactly one current frontier");
+assert.match(skill, /frontier execution[\s\S]{0,180}exactly one current frontier|exactly one current frontier[\s\S]{0,180}frontier execution/i,
+  "inline frontier execution must load exactly one current frontier");
+assert.match(skill, /currentFrontier[\s\S]{0,100}(?:null|none)[\s\S]{0,220}finalization[\s\S]{0,100}ready[\s\S]{0,220}(?:enter|resume|continue)[\s\S]{0,100}finalization/i,
+  "a terminal-ready manifest must resume directly into finalization");
+assert.match(skill, /(?:null|none)[\s\S]{0,160}(?:stop|invalid|reject)[\s\S]{0,180}(?:unless|except)[\s\S]{0,120}finalization[\s\S]{0,80}ready|(?:unless|except)[\s\S]{0,120}finalization[\s\S]{0,80}ready[\s\S]{0,180}(?:null|none)[\s\S]{0,160}(?:stop|invalid|reject)/i,
+  "other null-current-frontier states must fail closed");
 assert.match(skill, /frontier\.json/i, "inline execution must consume the frontier index");
 assert.match(skill, /current tasks[\s\S]{0,160}in order|in order[\s\S]{0,160}current tasks/i,
   "inline mode must run current tasks in order");

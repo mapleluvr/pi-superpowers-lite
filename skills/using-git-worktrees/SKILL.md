@@ -103,7 +103,7 @@ cd "$path"
 
 Do not infer or run setup from marker files. Use only the current frontier's exact **frontier-declared dependency-only** setup, and record its command and purpose. Lifecycle hooks or scripts must be disabled or suppressed where the ecosystem permits; for example, a frontier may use `npm ci --ignore-scripts`, `cargo fetch`, or `go mod download`.
 
-Setup is not verification. If a command can build project code, execute lifecycle hooks, run tests, migrate data, or affect external state, it must be an explicit scoped L1/L2 command or be deferred to finalization L3. An unclassified or build-capable setup command blocks implementation until the plan supplies a safe boundary.
+Setup is not verification. If a command can build project code, execute lifecycle hooks, run tests, migrate data, or affect external state, it must be an explicit scoped L1/L2 command or be deferred to finalization L3. An unclassified or build-capable setup command blocks implementation until the current frontier supplies a safe boundary.
 
 ## Step 3: Record Selective Baseline
 
@@ -111,7 +111,7 @@ Before edits, record the **frozen base SHA**, branch, and clean status. Record a
 
 Run only the current frontier's declared L0-L2 commands and preserve their exact output as the **selective baseline**. State the affected paths/contracts and claim only that scope. This is not a globally clean baseline and must never be described as globally clean.
 
-If the plan lacks a trustworthy focused command, redesign the unit or boundary, add a focused harness, or defer it to final integration. Do not substitute a repository-wide suite.
+If the current frontier lacks a trustworthy focused command, redesign the unit or boundary, add a focused harness, or defer it to final integration. Do not substitute a repository-wide suite.
 
 If selective evidence fails on the untouched base, diagnose it before implementation and record whether the task is blocked or explicitly proceeding with a known base failure.
 

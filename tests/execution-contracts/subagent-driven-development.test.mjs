@@ -6,8 +6,12 @@ const implementer = readRepoFile("skills/subagent-driven-development/implementer
 
 assert.match(skill, /\.superpowers\/work\/<run-id>\/manifest\.json/i,
   "SDD must start from the dynamic run manifest");
-assert.match(skill, /manifest\.json[\s\S]{0,220}exactly one current frontier|exactly one current frontier[\s\S]{0,220}manifest\.json/i,
-  "SDD must load exactly one current frontier from the manifest");
+assert.match(skill, /frontier execution[\s\S]{0,180}exactly one current frontier|exactly one current frontier[\s\S]{0,180}frontier execution/i,
+  "SDD frontier execution must load exactly one current frontier from the manifest");
+assert.match(skill, /currentFrontier[\s\S]{0,100}(?:null|none)[\s\S]{0,220}finalization[\s\S]{0,100}ready[\s\S]{0,220}(?:enter|resume|continue)[\s\S]{0,100}finalization/i,
+  "a terminal-ready SDD manifest must resume directly into finalization");
+assert.match(skill, /(?:null|none)[\s\S]{0,160}(?:stop|invalid|reject)[\s\S]{0,180}(?:unless|except)[\s\S]{0,120}finalization[\s\S]{0,80}ready|(?:unless|except)[\s\S]{0,120}finalization[\s\S]{0,80}ready[\s\S]{0,180}(?:null|none)[\s\S]{0,160}(?:stop|invalid|reject)/i,
+  "other null-current-frontier SDD states must fail closed");
 assert.match(skill, /frontier\.json/i, "SDD must consume the frontier executable index");
 assert.match(skill, /task cards?/i, "SDD workers must receive task cards");
 assert.doesNotMatch(skill, /(?:approved|implementation|executable) plan|task brief|authority brief|\.superpowers\/sdd\/progress\.md|duplicate progress ledger/i,

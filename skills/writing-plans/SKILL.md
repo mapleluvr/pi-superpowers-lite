@@ -19,6 +19,10 @@ Read the authority index, `intent.md`, and only relevant protected contracts. Bi
 
 If authority is unapproved, inconsistent, or changed from the bound hash, stop. Derived execution state must not override or change durable authority. A product or protected-contract change returns for amendment; task decomposition does not amend authority.
 
+### Legacy Safe-Boundary Bootstrap
+
+An approved legacy spec or plan may initialize one new run only at an explicit safe boundary. Active legacy runs remain unchanged and are not migrated. Verify approval, clean restart state, and no in-flight effect; then bind the legacy path, approved commit, and hash identity to one run manifest as read-only authority input. Never copy, rename, or bulk-migrate it into new durable authority or task cards. If the run is active or the boundary is uncertain, stop and continue under the legacy workflow.
+
 ## Workspace
 
 ```text

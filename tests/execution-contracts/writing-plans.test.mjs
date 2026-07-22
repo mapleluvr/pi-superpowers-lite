@@ -20,6 +20,14 @@ assert.match(skill, /(?:inspect|read).*(?:current )?code.*tests?|tests?.*(?:insp
   "frontier selection must follow current-code inspection");
 assert.match(skill, /selective baseline/i,
   "workspace initialization must record a selective baseline");
+assert.match(skill, /legacy[\s\S]{0,100}(?:spec|plan)[\s\S]{0,180}(?:explicit )?safe boundary/i,
+  "an approved legacy spec or plan must be admissible only at an explicit safe boundary");
+assert.match(skill, /bind[\s\S]{0,120}legacy[\s\S]{0,160}(?:commit|hash|identity)[\s\S]{0,160}(?:one|single)[\s\S]{0,80}run/i,
+  "legacy bootstrap must bind source identity to one run");
+assert.match(skill, /(?:do not|never)[\s\S]{0,120}(?:copy|rename|migrate)[\s\S]{0,160}(?:task card|durable authority)|(?:task card|durable authority)[\s\S]{0,160}(?:do not|never)[\s\S]{0,120}(?:copy|rename|migrate)/i,
+  "legacy bootstrap must not copy or bulk-migrate legacy authority");
+assert.match(skill, /active legacy run[\s\S]{0,120}(?:unchanged|not migrated|do not migrate)/i,
+  "active legacy runs must remain unchanged");
 assert.match(skill, /highest-value.*earliest verifiable frontier|earliest verifiable.*highest-value/is,
   "planning must select the nearest high-value frontier");
 assert.match(skill, /current frontier/i,

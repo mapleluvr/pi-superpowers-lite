@@ -9,15 +9,13 @@ description: Use for Full-route work when a current dynamic frontier requires is
 
 Execute one current Full frontier with isolated implementers, native patch handoffs, one canonical integrator, scoped verification, bounded risk review, compact evidence, and a mandatory final whole-branch review.
 
-**Core principle:** parallelize only proved-independent writes; quarantine uncertainty; pay repository-wide verification once at finalization; review only where impact justifies the gate.
-
 ## Route Gate
 
-Use this skill only with approved durable authority and `.superpowers/work/<run-id>/manifest.json`. Read `manifest.json` once; it must name exactly one current frontier. Load that frontier's `frontier.md`, `frontier.json`, and task cards under `tasks/T*.md`. Do not consume legacy plans, authority summaries, or copied session history as execution authority.
+Use this skill only with approved durable authority and `.superpowers/work/<run-id>/manifest.json`. Read the manifest first and verify authority, canonical state, history, protected risks, and finalization state.
 
-Parallel SDD requires frontier mode `Parallel`, two or more independently useful outcomes, disjoint `owns` and `mutableResources`, stable consumed interfaces, focused L1 checks, and net benefit after coordination, worktree, patch-admission, and frontier L2 cost. A single dependency chain stays inline through `executing-plans`; shared mutable ownership or an unsplit transactional invariant stays under one writer.
+For frontier execution, a non-null `currentFrontier` requires exactly one current frontier. Load its `frontier.md`, `frontier.json`, and `tasks/T*.md`. When `currentFrontier` is null, require `finalization.status` to be `ready`, all history completed or superseded, no blocked frontier or protected risk, and the latest L2 bound to the clean canonical state. If all pass, enter finalization. A null current frontier is invalid: stop unless that finalization-ready state is proven. Never fabricate or reopen a frontier.
 
-Standard work remains Inline without Full artifacts. Micro work never uses SDD.
+Parallel SDD additionally requires two or more independently useful outcomes, disjoint `owns` and `mutableResources`, stable interfaces, focused L1, and net benefit after coordination, worktree, patch-admission, and frontier-L2 cost. A dependency chain, shared mutable owner, or unsplit invariant stays Inline. Standard and Micro do not use SDD. Do not consume legacy plans, copied authority, or session history as execution authority.
 
 ## Pre-Flight
 
@@ -51,13 +49,9 @@ No task or intermediate frontier runs repository-wide L3.
 
 ## Risk-Gated Task Review
 
-Evaluate task-level risk from behavior and blast radius, not file count. Candidate protected boundaries include public/shared contracts, security/privacy, migrations, concurrency, ordering, or high blast radius, but a task-level review is dispatched only when the current frontier names that boundary as a pinned spine or proves it cannot safely be deferred to final review. Routine tasks do not dispatch a task reviewer; they still require implementer tests, self-review, a clean owned patch, and structured gate evidence.
+Task-level risk is gated by behavior and blast radius, not file count. Dispatch it only when the current frontier pins public/shared contracts or a security/privacy, migration, concurrency, ordering, or high blast radius boundary that cannot safely defer. Routine tasks do not dispatch a task reviewer; they still require implementer tests, self-review, an owned patch, and structured evidence.
 
-Each non-final review unit has at most two review passes: one initial review and one closure review. Send one packet per pass. Do not serialize separate spec, privacy, test-quality, or style reviews for the same task. The closure packet freezes initial finding IDs, exact fix diff, focused evidence, and adjacent regressions. It must not rediscover the whole task.
-
-A reviewer finding blocks only when it is an impact-qualified Critical or Important finding tied to an acceptance ID or protected boundary, with a concrete failure scenario, observable behavior/data/security/public-contract impact, and proof that it cannot wait for L2, L3, or final review. Test completeness, speculative coverage, wording, metadata, and refactoring suggestions are non-blocking without that proof. The controller records `fix`, `defer`, or `reject`; reviewer labels alone do not block.
-
-After closure, new non-Critical findings not introduced by the fix go to final review. Reopen only for a demonstrated Critical regression, false evidence behind a disposition, or explicit route escalation. Task review never replaces the final whole-branch review.
+Follow `requesting-code-review` for one initial packet, one closure packet, impact-qualified blocking, frozen closure scope, and controller `fix`/`defer`/`reject` disposition. Task review never replaces the final whole-branch review.
 
 ## Implementer Dispatch
 
