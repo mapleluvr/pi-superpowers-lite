@@ -15,18 +15,21 @@ Use independent review as a bounded risk gate, not an open-ended search for poss
 - **Standard:** use risk-gated review only when shared behavior, broad blast radius, ambiguous acceptance, or sensitive evidence makes independent judgment material.
 - **Full:** keep the mandatory final whole-change review. Add task-level review only for a contract spine or another boundary whose unresolved failure would make dependent work unsafe.
 
-Routine Full tasks use implementation tests, self-review, L1/L2 evidence, and the final review rather than per-task reviewers.
+Routine frontiers have no independent task Review; use self-review, L1/L2, and final Review.
 
 ## Review Budget
 
-A non-final review unit has at most two review passes:
+Any independent agent asked to decide readiness, admission, acceptance, mandatory-rework, or integration belongs to the same bounded Review budget, whether named Reviewer, Oracle, analyst, or adjudicator. Calls from one declared packet collectively form one pass; an extra adjudication outside that packet consumes the next available pass, so renaming the role cannot create another gate.
 
-1. **One initial review** against the declared acceptance and protected boundary.
-2. **One closure review** of the initial findings, exact fix diff, and adjacent regression evidence.
+Protected-contract and final whole-change Review permit:
 
-Send one review packet per pass. Do not serially dispatch separate spec, privacy, test-quality, or style reviewers over the same unit. If multiple perspectives are explicitly required, collect them in one bounded pass and synthesize one finding list.
+1. **One initial review** against declared acceptance and protected boundaries.
+2. **One consolidated correction frontier** when blockers are accepted.
+3. **One closure review** of initial findings, exact fix diff, and adjacent regressions.
 
-After closure, new non-Critical findings not introduced by the fix are deferred to the final review ledger. Reopen the unit only for a demonstrated Critical regression, false evidence behind a disposition, or an explicit route escalation.
+Send one packet per pass. When multiple perspectives are explicitly required, collect them in that packet and synthesize one finding list; do not serialize separate spec, privacy, test-quality, or style gates.
+
+After closure, record new non-Critical findings not caused by the fix as deferred manifest risk for final Review. Reopen only for a demonstrated Critical regression, false disposition evidence, or explicit route escalation.
 
 ## Blocking-Finding Contract
 
@@ -60,11 +63,13 @@ The closure reviewer checks that scope only. It must not rediscover the whole ta
 
 Record exact `BASE_SHA` and `HEAD_SHA`; final review uses the branch start, not a relative one-commit shortcut. Include:
 
-- review-unit type: task boundary, contract spine, or final whole change;
-- approved requirement/spec and acceptance IDs;
+- review-unit type: protected contract, frontier boundary, or final whole change;
+- current task card when a task/frontier boundary is reviewed;
+- approved authority and authority acceptance IDs;
 - protected boundaries and known risk;
-- diff and L1/L2/L3 evidence appropriate to the gate;
+- exact diff and evidence paths appropriate to the gate;
 - pass number: `initial` or `closure`;
+- controller disposition for closure findings;
 - for closure, the frozen scope above.
 
 Use [code-reviewer.md](code-reviewer.md) as the reviewer template.
@@ -73,8 +78,8 @@ Use [code-reviewer.md](code-reviewer.md) as the reviewer template.
 
 1. Reproduce or inspect each proposed blocker.
 2. Map it to the blocking-finding contract.
-3. Record `fix`, `defer`, or `reject` before editing.
-4. Make one consolidated fix wave for accepted blockers.
+3. Record controller disposition as `fix`, `defer`, or `reject` before editing.
+4. Make one consolidated correction frontier for accepted blockers.
 5. Run focused evidence, then the single closure review.
 
 Critical findings block when confirmed. Only an impact-qualified Important finding may block; severity text alone never does.

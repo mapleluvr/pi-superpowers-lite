@@ -3,59 +3,61 @@ import { readRepoFile } from "../helpers/skill-contract.mjs";
 
 const reviewSkill = readRepoFile("skills/requesting-code-review/SKILL.md");
 const reviewerPrompt = readRepoFile("skills/requesting-code-review/code-reviewer.md");
-const sddSkill = readRepoFile("skills/subagent-driven-development/SKILL.md");
+const taskReviewerPrompt = readRepoFile("skills/subagent-driven-development/task-reviewer-prompt.md");
 
-assert.doesNotMatch(reviewSkill, /Review early, review often/i,
-  "review policy must not encourage unbounded review frequency");
-for (const anchor of [
-  /one initial review/i,
-  /one closure review/i,
-  /one review packet per pass/i,
-  /re-review scope/i,
-  /new non-Critical findings.*deferred/is,
-  /controller.*(?:disposition|defer|reject)|labels are advisory/is,
-]) {
-  assert.match(reviewSkill, anchor, `review convergence contract must contain ${anchor}`);
-}
-for (const anchor of [
-  /acceptanceId|protected boundary/i,
-  /concrete failure scenario|reproducible evidence/i,
-  /observable behavior|data integrity|security|public\/shared contract/i,
-  /cannot be deferred/i,
-  /non-blocking/i,
-]) {
-  assert.match(reviewSkill, anchor, `blocking finding must prove ${anchor}`);
-}
-assert.doesNotMatch(reviewSkill, /Important findings block progression until fixed/i,
-  "unqualified Important findings must not block by label alone");
-assert.match(reviewSkill, /Critical.*(?:regression|security|data|privacy)|Critical.*block/is,
-  "Critical escalation must remain available");
+const reviewConsumers = [
+  ["requesting-code-review skill", reviewSkill],
+  ["code reviewer prompt", reviewerPrompt],
+  ["protected task/frontier reviewer prompt", taskReviewerPrompt],
+];
 
-assert.match(reviewerPrompt, /acceptance.*(?:item|boundary)|protected boundary/i,
-  "reviewer must bind blocking findings to an acceptance or protected boundary");
-assert.match(reviewerPrompt, /reproducible|concrete failure scenario/i,
-  "reviewer must provide a concrete failure scenario");
-assert.match(reviewerPrompt, /defer|non-blocking/i,
-  "reviewer must have a non-blocking disposition");
-assert.match(reviewerPrompt, /closure|fix diff|new findings.*introduced|scope/i,
-  "reviewer prompt must constrain closure scope");
-assert.doesNotMatch(reviewerPrompt, /test gaps.*Important|Important.*test gaps/i,
-  "test gaps must not be unconditionally blocking");
-
-for (const anchor of [
-  /at most two review passes/i,
-  /one initial review/i,
-  /one closure review/i,
-  /one review packet per pass/i,
-  /closure.*(?:initial findings|fix diff)/is,
-  /routine tasks do not dispatch a task reviewer/i,
-  /new non-Critical.*deferred/is,
-  /Critical.*regression/is,
-  /final whole-branch review/i,
-]) {
-  assert.match(sddSkill, anchor, `SDD review budget must contain ${anchor}`);
+for (const [label, content] of reviewConsumers) {
+  assert.match(content, /readiness,\s*admission,\s*acceptance,\s*mandatory[- ]rework,\s*or\s*integration/i,
+    `${label} must classify every readiness/admission/integration verdict as Review`);
+  assert.match(content, /same bounded Review (?:budget|pass)/i,
+    `${label} must charge adjudication against the same bounded Review pass`);
+  assert.match(content, /Reviewer,\s*Oracle,\s*analyst,\s*or\s*adjudicator/i,
+    `${label} must count Review regardless of agent name`);
+  assert.match(content, /authority acceptance IDs?/i,
+    `${label} must use authority acceptance IDs`);
+  assert.match(content, /current task card/i,
+    `${label} must use current task-card terminology`);
+  assert.match(content, /exact diff.*evidence paths|exact evidence.*diff paths/is,
+    `${label} must require exact diff and evidence paths`);
+  assert.match(content, /controller disposition/i,
+    `${label} must preserve controller disposition`);
+  assert.doesNotMatch(content, /\[BRIEF_FILE\]|scripts\/task-brief|scripts\/review-package/,
+    `${label} must not reference unavailable task-brief/review-package helpers`);
 }
-assert.doesNotMatch(sddSkill, /Critical or Important findings block progression/i,
-  "SDD must require qualified impact, not severity labels alone");
+
+assert.match(reviewSkill, /Routine frontiers have no independent task Review/i,
+  "routine frontiers must not dispatch independent task Review");
+assert.match(reviewSkill, /protected[- ]contract.*final (?:whole[- ]change )?Review.*one initial.*one closure/is,
+  "protected-contract and final Review must retain initial + one closure semantics");
+assert.match(taskReviewerPrompt, /protected contract or frontier boundary/i,
+  "task/frontier reviewer must be reserved for protected boundaries");
+
+for (const [label, content] of reviewConsumers) {
+  assert.match(content, /acceptanceId|authority acceptance IDs?|protected boundary/i,
+    `${label} blocking findings must bind to acceptance or protected boundary`);
+  assert.match(content, /concrete failure scenario|reproducible evidence/i,
+    `${label} blocking findings must include concrete evidence`);
+  assert.match(content, /observable behavior|data integrity|security\/privacy|public\/shared contract/i,
+    `${label} blocking findings must prove qualified impact`);
+  assert.match(content, /cannot be deferred/i,
+    `${label} blocking findings must explain why deferral is unsafe`);
+  assert.match(content, /non[- ]blocking|deferred/i,
+    `${label} must retain non-blocking/deferred disposition`);
+  assert.match(content, /Critical.*(?:regression|security|data|privacy|block)/is,
+    `${label} must retain Critical escalation`);
+}
+
+for (const [label, content] of [
+  ["code reviewer prompt", reviewerPrompt],
+  ["protected task/frontier reviewer prompt", taskReviewerPrompt],
+]) {
+  assert.match(content, /closure[\s\S]*initial findings[\s\S]*fix diff[\s\S]*adjacent\s+regression/i,
+    `${label} must freeze closure scope to initial findings, fix diff, and adjacent regression evidence`);
+}
 
 console.log("review convergence contract checks passed");
