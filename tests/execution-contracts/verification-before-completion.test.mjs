@@ -19,6 +19,10 @@ assert.match(skill, /must not.*(?:all checks|whole change|repository-wide)|canno
   "scoped evidence must not support whole-change claims");
 assert.match(skill, /Do not run L3.*(?:L1|L2)|(?:L1|L2).*Do not run L3/is,
   "a scoped claim must not force repository-wide validation");
+assert.match(skill, /manifest.*finalization.*owns L3|L3.*owned by.*manifest.*finalization/is,
+  "the dynamic manifest finalization gate must own L3");
+assert.doesNotMatch(skill, /plan(?:'s)? finalization|plan-declared/i,
+  "verification must not depend on a static plan");
 assert.match(skill, /agent.*report/i);
 assert.ok(wordCount(skill) <= 668, "verification skill must not exceed its baseline word count");
 

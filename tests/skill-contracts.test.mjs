@@ -197,12 +197,12 @@ if (!ROUTER_ONLY) {
     "implementer tests",
     "self-review",
     "final whole-branch review",
-    "one consolidated fix wave",
+    "one consolidated correction frontier",
   ]) {
     assert.match(sdd.body, new RegExp(anchor, "i"), `SDD must retain ${anchor}`);
   }
   assert.match(sdd.body, /task-level.*risk|risk.*task-level/i);
-  assert.doesNotMatch(sdd.body, /task brief|authority brief|\.superpowers\/sdd\/progress\.md|duplicate progress ledger/i);
+  assert.doesNotMatch(sdd.body, /task brief|authority brief|\.superpowers\/sdd\/progress\.md|duplicate progress ledger|fix wave/i);
 }
 
 console.log(ROUTER_ONLY ? "router contract checks passed" : "skill contract checks passed");
